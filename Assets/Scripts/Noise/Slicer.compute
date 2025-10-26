@@ -1,0 +1,12 @@
+#pragma kernel CSMain
+
+Texture3D<float4> _Input;
+RWTexture2D<float4> _Output;
+int _Layer;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    uint3 coord = uint3(id.xy, _Layer);
+    _Output[id.xy] = _Input[coord];
+}
