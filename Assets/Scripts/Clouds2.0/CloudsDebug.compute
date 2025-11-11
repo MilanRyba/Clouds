@@ -1,0 +1,35 @@
+#pragma kernel CSMain
+
+#include "Common.hlsl"
+
+float TextureSlice;
+float2 ViewportDimensions;
+float2 ViewportDimensionsInv;
+float4 ChannelMask;
+
+Texture3D ShapeTexture;
+SamplerState samplerShapeTexture;
+
+Texture2D SourceTexture;
+SamplerState samplerSourceTexture;
+
+RWTexture2D<float4> Output;
+
+[numthreads(16, 16, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= ViewportDimensions))
+        return;
+
+    float2 debugUV = InverseLerp((float2)id.xy, float2(20.0f, 20.0f), float2(300.0f, 300.0f));
+	if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+	{
+        float3 pos = float3(debugUV.x, TextureSlice, debugUV.y);
+        Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(samplerShapeTexture, pos, 0), ChannelMask);
+        return;
+    }
+    
+    float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);
+    Output[id.xy] = SourceTexture.SampleLevel(samplerSourceTexture, uv, 0);
+
+}

@@ -15,18 +15,12 @@ public class RayMarcher : MonoBehaviour
 	[Range(1, 128)]
 	public int NumSteps = 8;
 
-	// public ComputeShader ComputeShader;
-	// private RenderTexture m_Texture;
-
-	// [Range(1, 128)]
-	// public int Resolution = 32;
-
 	private void OnRenderImage(RenderTexture source, RenderTexture destination)
 	{
 		if (m_Material == null)
 			m_Material = new Material(Shader);
 
-		m_Material.SetTexture("GradientTex", Texture);
+		m_Material.SetTexture("Cloud3DNoiseTextureShape", Texture);
 		m_Material.SetVector("_BoundsMin", Container.position - Container.localScale / 2);
 		m_Material.SetVector("_BoundsMax", Container.position + Container.localScale / 2);
 		m_Material.SetFloat("_Absorption", Absorption);

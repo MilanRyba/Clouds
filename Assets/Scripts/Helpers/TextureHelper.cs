@@ -10,16 +10,21 @@ namespace Helpers
 		// Create 2D texture with a given resolution
 		public static void CreateTexture2D(ref RenderTexture outTexture, int inResolution, string inName)
 		{
+			CreateTexture2D(ref outTexture, inResolution, inResolution, inName);
+		}
+
+		public static void CreateTexture2D(ref RenderTexture outTexture, int inWidth, int inHeight, string inName)
+		{
 			var format = UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_UNorm;
 
 			if (outTexture == null || !outTexture.IsCreated() ||
-				outTexture.width != inResolution || outTexture.height != inResolution ||
+				outTexture.width != inWidth || outTexture.height != inHeight ||
 				outTexture.graphicsFormat != format)
 			{
 				if (outTexture != null)
 					outTexture.Release();
 
-				outTexture = new RenderTexture(inResolution, inResolution, 0);
+				outTexture = new RenderTexture(inWidth, inHeight, 0);
 				outTexture.graphicsFormat = format;
 				outTexture.enableRandomWrite = true;
 				outTexture.Create();

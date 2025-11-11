@@ -7,7 +7,7 @@ using UnityEngine;
 public class NoiseGenerator : MonoBehaviour
 {
 	public enum GeneratorMode { Shape, Detail }
-	public enum TextureChannel { R, G, B, A }
+	public enum TextureChannel { All, R, G, B, A }
 
 	[Header("General")]
 
@@ -57,8 +57,7 @@ public class NoiseGenerator : MonoBehaviour
 				(ActiveChannel == TextureChannel.R) ? 1 : 0,
 				(ActiveChannel == TextureChannel.G) ? 1 : 0,
 				(ActiveChannel == TextureChannel.B) ? 1 : 0,
-				(ActiveChannel == TextureChannel.A) ? 1 : 0
-				);
+				(ActiveChannel == TextureChannel.A) ? 1 : 0);
 		}
 	}
 

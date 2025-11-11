@@ -47,8 +47,8 @@ Shader "Hidden/TestImageEffect"
             sampler2D _MainTex;
             sampler2D _CameraDepthTexture;
 
-            Texture3D GradientTex;
-            SamplerState samplerGradientTex;
+            Texture3D Cloud3DNoiseTextureShape;
+            SamplerState samplerCloud3DNoiseTextureShape;
 
             float3 _BoundsMin;
             float3 _BoundsMax;
@@ -82,10 +82,39 @@ Shader "Hidden/TestImageEffect"
                 return float2(dstToBox, dstInsideBox);
             }
 
-            float SampleDensity(float3 position)
+            // Utility function that maps a value from one range to another
+            float Remap(float original_value, float original_min, float original_max, float new_min, float new_max)
             {
-                float4 noise = GradientTex.SampleLevel(samplerGradientTex, position, 0);
-                return noise.x;
+                return new_min + (((original_value - original_min) / (original_max - original_min)) * (new_max - new_min));
+            }
+
+            float SampleCloudDensity(float3 p)
+            {
+                // Read the low-frequency Perlin-Worley noise and Worley noises.
+                float4 low_frequency_noises = Cloud3DNoiseTextureShape.SampleLevel(samplerCloud3DNoiseTextureShape, p, 0);
+                
+                // Build an FBM out of the low frequency Worley noises
+                // that can be used to add detail to the low-frequency Perlin-Worley noise.
+                float low_freq_FBM = (low_frequency_noises.g * 0.625) 
+                                   + (low_frequency_noises.b * 0.25) 
+                                   + (low_frequency_noises.a * 0.125);
+
+                // Define the base cloud shape by dilating it with the low-frequency FBM made of Worley noise
+                float base_cloud = Remap(low_frequency_noises.r, -(1.0 - low_freq_FBM), 1.0, 0.0, 1.0);
+            
+                // float density_height_gradient = GetDensityHeightGradientForPoint(p, weather_data);
+            
+                // Apply the height function to the base cloud shape
+                // base_cloud *= density_height_gradient;
+            
+                return base_cloud;
+            
+                // Next we apply the cloud coverage attribute from the weather texture
+            }
+
+            float BeersLaw(float distance, float absorption)
+            {
+                return exp(-distance * absorption);
             }
 
             fixed4 frag (v2f i) : SV_Target
@@ -110,7 +139,7 @@ Shader "Hidden/TestImageEffect"
                 while (dstTravelled < dstLimit)
                 {
                     float3 rayPos = rayOrigin + rayDirection * (dstToBox + dstTravelled);
-                    totalDensity += SampleDensity(rayPos) * stepSize;
+                    totalDensity += SampleCloudDensity(rayPos) * stepSize;
                     dstTravelled += stepSize;
                 }
 
