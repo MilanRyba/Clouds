@@ -18,7 +18,10 @@ float ShapeNoiseScale;
 float Coverage;
 
 Texture3D ShapeTexture;
-SamplerState samplerShapeTexture;
+Texture3D DetailTexture;
+
+SamplerState sLinearRepeat;
+SamplerState sPointRepeat;
 
 Texture2D SceneTexture;
 SamplerState samplerSceneTexture;
@@ -28,9 +31,9 @@ SamplerState samplerSceneTexture;
 
 RWTexture2D<float4> Output;
 
-// uint Debug;
-// float TextureSlice;
-// float4 ChannelMask;
+uint Debug;
+float TextureSlice;
+float4 ChannelMask;
 
 // Returns distance to first and second box intersection
 bool RayBoxIntersect(float3 boundsMin, float3 boundsMax, float3 rayOrigin, float3 rayDir, out float2 hit)
@@ -76,7 +79,7 @@ float SampleCloudDensity(float3 p)
     p *= GlobalScale;
     
     // Read the low-frequency Perlin-Worley noise and Worley noises.
-    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(samplerShapeTexture, p * ShapeNoiseScale, 0);
+    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, p * ShapeNoiseScale, 0);
                 
     // Build an FBM out of the low frequency Worley noises
     // that can be used to add detail to the low-frequency Perlin-Worley noise.
@@ -146,16 +149,16 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     if (any(id.xy >= ViewportDimensions))
         return;
 
-    // if (Debug)
-    // {
-    //     float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(300.0f, 300.0f));
-    //     if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
-    //     {
-    //         float3 pos = float3(debugUV.x, TextureSlice, debugUV.y);
-    //         Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(samplerShapeTexture, pos, 0), ChannelMask);
-    //         return;
-    //     }
-    // }
+    if (Debug)
+    {
+        float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(300.0f, 300.0f));
+        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+        {
+            float3 pos = float3(debugUV.x, TextureSlice, debugUV.y);
+            Output[id.xy] = MaskChannels(DetailTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
+            return;
+        }
+    }
     
     float2 uv1 = TexelToUV(id.xy, ViewportDimensionsInv);
     float4 sceneColor = SceneTexture.SampleLevel(samplerSceneTexture, uv1, 0);

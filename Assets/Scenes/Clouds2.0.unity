@@ -586,20 +586,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 585b08ce21e5c594dae89cc1016dae81, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  PerlinMethod: 1
-  WorleyMethod: 0
+  PerlinMethod: 0
+  WorleyMethod: 1
   Seed: 22
   ShapeNoiseFrequency: 3
   ShapeNoiseResolution: 128
+  ShapeNoiseScale: 5
+  DetailNoiseFrequency: 4
+  DetailNoiseResolution: 32
+  DetailNoiseScale: 0.3
   Container: {fileID: 339031172}
   RayStepSize: 0.01
   GlobalDensity: 0.879
   GlobalScale: 0.01
-  ShapeNoiseScale: 5
   Coverage: 1
-  EnableDebug: 0
-  TextureSlice: 0
-  ActiveChannel: 0
+  EnableDebug: 1
+  TextureSlice: 0.575
+  ActiveChannel: 1
   m_Clouds: {fileID: 7200000, guid: 964f4bd3416234b448fc9d7f0860d34d, type: 3}
   m_CloudShapeNoise: {fileID: 7200000, guid: d765d136f9515c04e8a2f1eee6e39635, type: 3}
 --- !u!1660057539 &9223372036854775807

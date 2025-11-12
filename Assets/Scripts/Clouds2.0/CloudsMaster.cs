@@ -7,12 +7,19 @@ public class CloudsMaster : MonoBehaviour
 {
 	[Header("Noise")]
 
+	// Temporary members for testing different methods of generation noise
 	[Range(0, 1)] public int PerlinMethod = 0;
 	[Range(0, 1)] public int WorleyMethod = 0;
-	[Range(0, 100)]     public int Seed = 0;
+
+	[Range(0, 100)]     public int Seed = 0; // Seed value for Worley noise
+
 	[Range(1, 10)]      public int ShapeNoiseFrequency = 3;
 	[Range(32, 256)]    public int ShapeNoiseResolution = 128;
-	// [Range(0.1f, 5.0f)] public float ShapeNoiseScale = 0.3f;
+	[Range(0.1f, 5.0f)] public float ShapeNoiseScale = 0.3f;
+
+	[Range(1, 10)]      public int DetailNoiseFrequency = 2;
+	[Range(1, 64)]      public int DetailNoiseResolution = 32;
+	[Range(0.1f, 5.0f)] public float DetailNoiseScale = 0.3f;
 
 	[Header("Clouds")]
 	public Transform Container;
@@ -20,7 +27,6 @@ public class CloudsMaster : MonoBehaviour
 	[Range(0.01f, 10.0f)]   public float RayStepSize = 0.15f;
 	[Range(0.0f, 1.0f)]     public float GlobalDensity = 0.1f;
 	[Range(0.01f, 0.0005f)] public float GlobalScale = 0.001f;
-	[Range(0.1f, 5.0f)]     public float ShapeNoiseScale = 0.3f;
 	[Range(0.0f, 1.0f)]     public float Coverage = 0.9f;
 
 	[Header("Debug")]
@@ -52,6 +58,7 @@ public class CloudsMaster : MonoBehaviour
 
 	private RenderTexture m_IntermediateTexture;
 	private RenderTexture m_ShapeNoise;
+	private RenderTexture m_DetailNoise;
 
 	private void OnRenderImage(RenderTexture source, RenderTexture destination)
 	{
@@ -75,14 +82,15 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetFloat("Coverage", Coverage);
 		
 		m_Clouds.SetTexture(0, "ShapeTexture", m_ShapeNoise);
+		m_Clouds.SetTexture(0, "DetailTexture", m_DetailNoise);
 		m_Clouds.SetTexture(0, "SceneTexture", source);
 		// m_Clouds.SetTexture(0, "DepthTexture", Shader.GetGlobalTexture("_CameraDepthTexture"));
 		m_Clouds.SetTexture(0, "Output", m_IntermediateTexture);
 
 		// Debug parameters
-		// m_Clouds.SetBool("Debug", EnableDebug);
-		// m_Clouds.SetFloat("TextureSlice", TextureSlice);
-		// m_Clouds.SetVector("ChannelMask", ChannelMask);
+		m_Clouds.SetBool("Debug", EnableDebug);
+		m_Clouds.SetFloat("TextureSlice", TextureSlice);
+		m_Clouds.SetVector("ChannelMask", ChannelMask);
 
 		GraphicsHelper.Dispatch(m_Clouds, source.width, source.height);
 
@@ -91,8 +99,9 @@ public class CloudsMaster : MonoBehaviour
 
 	private void OnValidate()
 	{
-		// Shape Noise Pass
+		// Recreate textures if needed
 		TextureHelper.CreateTexture3D(ref m_ShapeNoise, ShapeNoiseResolution, "Shape Noise");
+		TextureHelper.CreateTexture3D(ref m_DetailNoise, DetailNoiseResolution, "Detail Noise");
 
 		m_CloudShapeNoise.SetInt("WorleyMethod", WorleyMethod);
 		m_CloudShapeNoise.SetInt("PerlinMethod", PerlinMethod);
@@ -100,7 +109,14 @@ public class CloudsMaster : MonoBehaviour
 		m_CloudShapeNoise.SetInt("Frequency", ShapeNoiseFrequency);
 		m_CloudShapeNoise.SetFloat("ResolutionInv", 1.0f / ShapeNoiseResolution);
 		m_CloudShapeNoise.SetTexture(0, "NoiseOutput", m_ShapeNoise);
-
 		GraphicsHelper.Dispatch(m_CloudShapeNoise, ShapeNoiseResolution, ShapeNoiseResolution, ShapeNoiseResolution, 0);
+
+		m_CloudShapeNoise.SetInt("WorleyMethod", WorleyMethod);
+		m_CloudShapeNoise.SetInt("PerlinMethod", PerlinMethod);
+		m_CloudShapeNoise.SetInt("Seed", Seed);
+		m_CloudShapeNoise.SetInt("Frequency", DetailNoiseFrequency);
+		m_CloudShapeNoise.SetFloat("ResolutionInv", 1.0f / DetailNoiseResolution);
+		m_CloudShapeNoise.SetTexture(1, "NoiseOutput", m_DetailNoise);
+		GraphicsHelper.Dispatch(m_CloudShapeNoise, DetailNoiseResolution, DetailNoiseResolution, DetailNoiseResolution, 1);
 	}
 }
