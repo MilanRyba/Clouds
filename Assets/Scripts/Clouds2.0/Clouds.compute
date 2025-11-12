@@ -1,0 +1,184 @@
+#pragma kernel CSMain
+
+#include "Common.hlsl"
+
+float2 ViewportDimensions;
+float2 ViewportDimensionsInv;
+float3 CameraPosition;
+float4x4 CameraToWorld;
+float4x4 CameraInverseProjection;
+
+float3 BoundsMin;
+float3 BoundsMax;
+
+float RayStepSize;
+float GlobalDensity;
+float GlobalScale;
+float ShapeNoiseScale;
+float Coverage;
+
+Texture3D ShapeTexture;
+SamplerState samplerShapeTexture;
+
+Texture2D SceneTexture;
+SamplerState samplerSceneTexture;
+
+// Texture2D DepthTexture;
+// SamplerState samplerDepthTexture;
+
+RWTexture2D<float4> Output;
+
+// uint Debug;
+// float TextureSlice;
+// float4 ChannelMask;
+
+// Returns distance to first and second box intersection
+bool RayBoxIntersect(float3 boundsMin, float3 boundsMax, float3 rayOrigin, float3 rayDir, out float2 hit)
+{
+    float3 invRaydir = 1.0 / rayDir;
+
+    float3 t0 = (boundsMin - rayOrigin) * invRaydir;
+    float3 t1 = (boundsMax - rayOrigin) * invRaydir;
+    float3 tmin = min(t0, t1);
+    float3 tmax = max(t0, t1);
+                
+    float dstA = max(max(tmin.x, tmin.y), tmin.z);
+    float dstB = min(tmax.x, min(tmax.y, tmax.z));
+    
+    if (dstA > dstB)
+    {
+        hit = -1;
+        return false;
+    }
+    
+    hit = float2(dstA, dstB);
+    return true;
+}
+
+bool RaySphereIntersect(float3 rayOrigin, float3 rayDirection, float3 sphereCenter, float sphereRadius, out float2 intersection)
+{
+    float3 oc = rayOrigin - sphereCenter;
+    float b = dot(oc, rayDirection);
+    float c = dot(oc, oc) - sphereRadius * sphereRadius;
+    float h = b * b - c;
+    if (h < 0.0)
+    {
+        intersection = -1.0f;
+        return false;
+    }
+    h = sqrt(h);
+    intersection = float2(-b - h, -b + h);
+    return true;
+}
+
+float SampleCloudDensity(float3 p)
+{
+    p *= GlobalScale;
+    
+    // Read the low-frequency Perlin-Worley noise and Worley noises.
+    float4 lowFrequencyNoises = ShapeTexture.SampleLevel(samplerShapeTexture, p * ShapeNoiseScale, 0);
+                
+    // Build an FBM out of the low frequency Worley noises
+    // that can be used to add detail to the low-frequency Perlin-Worley noise.
+    float lowFreqFBM = dot(lowFrequencyNoises.gba, float3(0.625, 0.25, 0.125));
+
+    // Define the base cloud shape by dilating it with the low-frequency FBM made of Worley noise
+    float baseCloud = Remap(lowFrequencyNoises.r, (1.0 - lowFreqFBM), 1.0, 0.0, 1.0);
+    
+    baseCloud = Remap(baseCloud, 1.0f - Coverage, 1.0f, 0.0f, 1.0f);
+    baseCloud *= Coverage;
+    
+    return saturate(baseCloud * GlobalDensity);
+}
+
+float4 RenderClouds(float3 rayOrigin, float3 rayDirection)
+{
+    float minT = -1e10;
+    float maxT = -1e10;
+    
+    float2 hit;
+    if (RayBoxIntersect(BoundsMin, BoundsMax, rayOrigin, rayDirection, hit))
+    {
+        if (all(hit > 0.0))
+        {
+            // Ray hit the box from outside
+            // minT is the closer intersection and maxT is the farther one
+            minT = min(hit.x, hit.y);
+            maxT = max(hit.x, hit.y);
+        }
+        else
+        {
+            // Ray hit the box from inside
+            minT = 0.0;
+            maxT = max(hit.x, hit.y);
+        }
+    }
+    else
+    {
+        return float4(0, 0, 0, 1);
+    }
+    
+    // Plus more minT and maxT processing
+    
+    float3 totalScattering = 0.0f;
+    float transmittance = 1.0f;
+    
+    for (float t = minT; t <= maxT; t += RayStepSize)
+    {
+        float3 rayPos = rayOrigin + rayDirection * t;
+        float density = SampleCloudDensity(rayPos);
+        
+        if (density > 0.0)
+        {
+            transmittance *= exp(-density * RayStepSize);
+            
+            if (transmittance < 0.01)
+                break;
+        }
+    }
+    
+    return float4(totalScattering, transmittance);
+}
+
+[numthreads(16, 16, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= ViewportDimensions))
+        return;
+
+    // if (Debug)
+    // {
+    //     float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(300.0f, 300.0f));
+    //     if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+    //     {
+    //         float3 pos = float3(debugUV.x, TextureSlice, debugUV.y);
+    //         Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(samplerShapeTexture, pos, 0), ChannelMask);
+    //         return;
+    //     }
+    // }
+    
+    float2 uv1 = TexelToUV(id.xy, ViewportDimensionsInv);
+    float4 sceneColor = SceneTexture.SampleLevel(samplerSceneTexture, uv1, 0);
+    
+    // float sceneDepth = DepthTexture.SampleLevel(samplerDepthTexture, uv, 0).r;
+    
+    // Get the dimensions of the RenderTexture
+    uint width, height;
+    Output.GetDimensions(width, height);
+
+    // Transform pixel to [-1,1] range
+    float2 uv = float2((id.xy + float2(0.5f, 0.5f)) / float2(width, height) * 2.0f - 1.0f);
+    
+    // Transform the camera origin to world space
+    float3 origin = mul(CameraToWorld, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
+    
+    // Invert the perspective projection of the view-space position
+    float3 direction = mul(CameraInverseProjection, float4(uv, 0.0f, 1.0f)).xyz;
+    // Transform the direction from camera to world space and normalize
+    direction = mul(CameraToWorld, float4(direction, 0.0f)).xyz;
+    direction = normalize(direction);
+    
+    float4 scatteringTransmittance = RenderClouds(origin, direction);
+    float3 color = sceneColor.rgb * scatteringTransmittance.w + scatteringTransmittance.xyz;    
+    Output[id.xy] = float4(color, 1.0);
+}
