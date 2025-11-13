@@ -78,6 +78,10 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetVector("BoundsMin", Container.position - Container.localScale / 2);
 		m_Clouds.SetVector("BoundsMax", Container.position + Container.localScale / 2);
 
+		Light sun = FindObjectOfType<Light>();
+		m_Clouds.SetVector("SunDirection", sun.transform.forward);
+		m_Clouds.SetVector("SunColor", sun.color);
+
 		m_Clouds.SetFloat("RayStepSize", RayStepSize);
 		m_Clouds.SetFloat("GlobalDensity", GlobalDensity);
 		m_Clouds.SetFloat("GlobalScale", GlobalScale);
@@ -98,6 +102,10 @@ public class CloudsMaster : MonoBehaviour
 		GraphicsHelper.Dispatch(m_Clouds, source.width, source.height);
 
 		Graphics.Blit(m_IntermediateTexture, destination);
+
+		// Apparently this does nothing while in edit mode, 
+		// so we only take screenshots in play mode when we have something
+		ScreenCapture.CaptureScreenshot("Screenshots/Clouds2.png");
 	}
 
 	private void OnValidate()

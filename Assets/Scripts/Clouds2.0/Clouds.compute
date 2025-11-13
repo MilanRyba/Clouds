@@ -13,6 +13,9 @@ float FarZ;
 float3 BoundsMin;
 float3 BoundsMax;
 
+float3 SunDirection;
+float3 SunColor;
+
 float RayStepSize;
 float GlobalDensity;
 float GlobalScale;
@@ -153,7 +156,7 @@ float4 RenderClouds(float3 rayOrigin, float3 rayDirection, float maxDepth)
         
         if (density > 0.0)
         {
-            float3 sunScattering = LightMarch(rayPos, normalize(float3(0.2, 0.5, 0.7))) * float3(1, 1, 1); // * SunColor
+            float3 sunScattering = LightMarch(rayPos, normalize(-SunDirection)) * SunColor;
             totalScattering += density * transmittance * RayStepSize * sunScattering;
             transmittance *= exp(-density * RayStepSize);
             
@@ -189,7 +192,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
             float3 pos = float3(debugUV.x, TextureSlice, debugUV.y);
-            Output[id.xy] = MaskChannels(DetailTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
+            Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
             return;
         }
     }
