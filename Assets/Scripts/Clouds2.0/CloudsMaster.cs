@@ -72,6 +72,9 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetMatrix("CameraToWorld", camera.cameraToWorldMatrix);
 		m_Clouds.SetMatrix("CameraInverseProjection", camera.projectionMatrix.inverse);
 
+		m_Clouds.SetFloat("NearZ", camera.nearClipPlane);
+		m_Clouds.SetFloat("FarZ", camera.farClipPlane);
+
 		m_Clouds.SetVector("BoundsMin", Container.position - Container.localScale / 2);
 		m_Clouds.SetVector("BoundsMax", Container.position + Container.localScale / 2);
 
@@ -84,7 +87,7 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetTexture(0, "ShapeTexture", m_ShapeNoise);
 		m_Clouds.SetTexture(0, "DetailTexture", m_DetailNoise);
 		m_Clouds.SetTexture(0, "SceneTexture", source);
-		// m_Clouds.SetTexture(0, "DepthTexture", Shader.GetGlobalTexture("_CameraDepthTexture"));
+		m_Clouds.SetTexture(0, "DepthTexture", Shader.GetGlobalTexture("_CameraDepthTexture"));
 		m_Clouds.SetTexture(0, "Output", m_IntermediateTexture);
 
 		// Debug parameters

@@ -7,6 +7,8 @@ float2 ViewportDimensionsInv;
 float3 CameraPosition;
 float4x4 CameraToWorld;
 float4x4 CameraInverseProjection;
+float NearZ;
+float FarZ;
 
 float3 BoundsMin;
 float3 BoundsMax;
@@ -20,14 +22,13 @@ float Coverage;
 Texture3D ShapeTexture;
 Texture3D DetailTexture;
 
-SamplerState sLinearRepeat;
-SamplerState sPointRepeat;
-
 Texture2D SceneTexture;
-SamplerState samplerSceneTexture;
+Texture2D DepthTexture;
 
-// Texture2D DepthTexture;
-// SamplerState samplerDepthTexture;
+SamplerState sLinearRepeat;
+SamplerState sLinearClamp;
+SamplerState sPointRepeat;
+SamplerState sPointClamp;
 
 RWTexture2D<float4> Output;
 
@@ -108,7 +109,7 @@ float LightMarch(float3 rayOrigin, float3 rayDirection)
     return exp(-totalDensity);
 }
 
-float4 RenderClouds(float3 rayOrigin, float3 rayDirection)
+float4 RenderClouds(float3 rayOrigin, float3 rayDirection, float maxDepth)
 {
     float minT = -1e10;
     float maxT = -1e10;
@@ -135,7 +136,12 @@ float4 RenderClouds(float3 rayOrigin, float3 rayDirection)
         return float4(0, 0, 0, 1);
     }
     
-    // Plus more minT and maxT processing
+    minT = max(0, minT);
+    maxT = min(maxDepth, max(0, maxT));
+    
+    // The scene is obscuring the cloud layer
+    if (minT >= maxT)
+        return float4(0, 0, 0, 1);
     
     float3 totalScattering = 0.0f;
     float transmittance = 1.0f;
@@ -147,7 +153,7 @@ float4 RenderClouds(float3 rayOrigin, float3 rayDirection)
         
         if (density > 0.0)
         {
-            float3 sunScattering = LightMarch(rayPos, float3(0, 1, 0)) * float3(1, 1, 1); // * SunColor
+            float3 sunScattering = LightMarch(rayPos, normalize(float3(0.2, 0.5, 0.7))) * float3(1, 1, 1); // * SunColor
             totalScattering += density * transmittance * RayStepSize * sunScattering;
             transmittance *= exp(-density * RayStepSize);
             
@@ -157,6 +163,18 @@ float4 RenderClouds(float3 rayOrigin, float3 rayDirection)
     }
     
     return float4(totalScattering, transmittance);
+}
+
+float LinearizeDepth01(float z)
+{
+    return FarZ / (FarZ + z * (NearZ - FarZ));
+}
+
+float3 ViewPositionFromDepth(float2 uv, float depth, float4x4 projectionInverse)
+{
+    float4 clip = float4(float2(uv.x, 1.0f - uv.y) * 2.0f - 1.0f, 0.0f, 1.0f) * NearZ;
+    float3 viewRay = mul(clip, projectionInverse).xyz;
+    return viewRay * LinearizeDepth01(depth);
 }
 
 [numthreads(16, 16, 1)]
@@ -176,28 +194,24 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         }
     }
     
-    float2 uv1 = TexelToUV(id.xy, ViewportDimensionsInv);
-    float4 sceneColor = SceneTexture.SampleLevel(samplerSceneTexture, uv1, 0);
-    
-    // float sceneDepth = DepthTexture.SampleLevel(samplerDepthTexture, uv, 0).r;
-    
-    // Get the dimensions of the RenderTexture
-    uint width, height;
-    Output.GetDimensions(width, height);
+    float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);
+    float4 sceneColor = SceneTexture.SampleLevel(sPointClamp, uv, 0);
+    float sceneDepth = DepthTexture.SampleLevel(sPointClamp, uv, 0).r;
+    float3 viewRay = normalize(ViewPositionFromDepth(uv, sceneDepth, CameraInverseProjection));
+    float linearDepth = sceneDepth == 0 ? 10000000 : length(viewRay);
 
-    // Transform pixel to [-1,1] range
-    float2 uv = float2((id.xy + float2(0.5f, 0.5f)) / float2(width, height) * 2.0f - 1.0f);
+    // Transform pixel coordinates from [0, 1] to [-1, 1] range
+    // TODO: Try this instead of uv * 2 - 1
+    // float2 centeredUV = float2((id.xy + float2(0.5f, 0.5f)) / ViewportDimensions * 2.0f - 1.0f);
     
-    // Transform the camera origin to world space
-    float3 origin = mul(CameraToWorld, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
-    
-    // Invert the perspective projection of the view-space position
-    float3 direction = mul(CameraInverseProjection, float4(uv, 0.0f, 1.0f)).xyz;
-    // Transform the direction from camera to world space and normalize
+    // Create camera ray
+    float3 origin = CameraPosition;    
+    float3 direction = mul(CameraInverseProjection, float4(uv * 2.0 - 1.0, 0.0f, 1.0f)).xyz;
     direction = mul(CameraToWorld, float4(direction, 0.0f)).xyz;
     direction = normalize(direction);
     
-    float4 scatteringTransmittance = RenderClouds(origin, direction);
+    
+    float4 scatteringTransmittance = RenderClouds(origin, direction, linearDepth);
     float3 color = sceneColor.rgb * scatteringTransmittance.w + scatteringTransmittance.xyz;    
     Output[id.xy] = float4(color, 1.0);
 }
