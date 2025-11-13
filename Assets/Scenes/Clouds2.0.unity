@@ -169,8 +169,8 @@ Transform:
   m_GameObject: {fileID: 339031170}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.65, y: 1.84, z: -1.22}
-  m_LocalScale: {x: 10, y: 4.9385695, z: 11.436715}
+  m_LocalPosition: {x: 0.64986, y: 300, z: 26.6}
+  m_LocalScale: {x: 10393.783, y: 100, z: 9584.819}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -370,7 +370,7 @@ Transform:
   m_GameObject: {fileID: 653479335}
   serializedVersion: 2
   m_LocalRotation: {x: 0.40821788, y: -0.23456968, z: 0.10938163, w: 0.8754261}
-  m_LocalPosition: {x: 0, y: 3, z: 0}
+  m_LocalPosition: {x: 0, y: 3, z: 3.321}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -586,22 +586,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 585b08ce21e5c594dae89cc1016dae81, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  PerlinMethod: 0
+  PerlinMethod: 1
   WorleyMethod: 1
-  Seed: 22
-  ShapeNoiseFrequency: 3
+  Seed: 0
+  ShapeNoiseFrequency: 4
   ShapeNoiseResolution: 128
-  ShapeNoiseScale: 5
-  DetailNoiseFrequency: 4
+  ShapeNoiseScale: 0.3
+  DetailNoiseFrequency: 3
   DetailNoiseResolution: 32
-  DetailNoiseScale: 0.3
+  DetailNoiseScale: 3
   Container: {fileID: 339031172}
-  RayStepSize: 0.01
-  GlobalDensity: 0.879
-  GlobalScale: 0.01
-  Coverage: 1
-  EnableDebug: 1
-  TextureSlice: 0.575
+  RayStepSize: 2.7
+  GlobalDensity: 0.103
+  GlobalScale: 0.0011
+  Coverage: 0.943
+  EnableDebug: 0
+  TextureSlice: 0
   ActiveChannel: 1
   m_Clouds: {fileID: 7200000, guid: 964f4bd3416234b448fc9d7f0860d34d, type: 3}
   m_CloudShapeNoise: {fileID: 7200000, guid: d765d136f9515c04e8a2f1eee6e39635, type: 3}
