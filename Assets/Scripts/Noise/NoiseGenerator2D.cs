@@ -35,7 +35,7 @@ public class NoiseGenerator2D : MonoBehaviour
 		Debug.Log("Updating Noise");
 
 		// Re-create the texture if needed
-		TextureHelper.CreateTexture2D(ref NoiseTexture, TextureResolution, "WorleyNoise");
+		TextureHelper.CreateTexture2D(ref NoiseTexture, TextureResolution, UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_UNorm, "WorleyNoise");
 
 		SetNoiseSettings(Settings);
 

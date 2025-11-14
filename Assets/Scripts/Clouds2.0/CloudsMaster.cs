@@ -28,6 +28,7 @@ public class CloudsMaster : MonoBehaviour
 	[Range(0.0f, 1.0f)]     public float GlobalDensity = 0.1f;
 	[Range(0.01f, 0.0005f)] public float GlobalScale = 0.001f;
 	[Range(0.0f, 1.0f)]     public float Coverage = 0.9f;
+	[Range(0.0f, 1.0f)]		public float CloudType = 0.5f;
 
 	[Header("Debug")]
 
@@ -59,10 +60,11 @@ public class CloudsMaster : MonoBehaviour
 	private RenderTexture m_IntermediateTexture;
 	private RenderTexture m_ShapeNoise;
 	private RenderTexture m_DetailNoise;
+	private RenderTexture m_HeightDensityGradient;
 
 	private void OnRenderImage(RenderTexture source, RenderTexture destination)
 	{
-		TextureHelper.CreateTexture2D(ref m_IntermediateTexture, source.width, source.height, "Clouds Intermediate Texture");
+		TextureHelper.CreateTexture2D(ref m_IntermediateTexture, source.width, source.height, source.graphicsFormat, "Clouds Intermediate Texture");
 
 		m_Clouds.SetVector("ViewportDimensions", new Vector2(source.width, source.height));
 		m_Clouds.SetVector("ViewportDimensionsInv", new Vector2(1.0f / source.width, 1.0f / source.height));
@@ -87,9 +89,11 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetFloat("GlobalScale", GlobalScale);
 		m_Clouds.SetFloat("ShapeNoiseScale", ShapeNoiseScale);
 		m_Clouds.SetFloat("Coverage", Coverage);
+		m_Clouds.SetFloat("CloudType", CloudType);
 		
 		m_Clouds.SetTexture(0, "ShapeTexture", m_ShapeNoise);
 		m_Clouds.SetTexture(0, "DetailTexture", m_DetailNoise);
+		m_Clouds.SetTexture(0, "HeightGradient", m_HeightDensityGradient);
 		m_Clouds.SetTexture(0, "SceneTexture", source);
 		m_Clouds.SetTexture(0, "DepthTexture", Shader.GetGlobalTexture("_CameraDepthTexture"));
 		m_Clouds.SetTexture(0, "Output", m_IntermediateTexture);
@@ -103,16 +107,18 @@ public class CloudsMaster : MonoBehaviour
 
 		Graphics.Blit(m_IntermediateTexture, destination);
 
-		// Apparently this does nothing while in edit mode, 
-		// so we only take screenshots in play mode when we have something
-		ScreenCapture.CaptureScreenshot("Screenshots/Clouds2.png");
+		if (Application.isPlaying)
+			ScreenCapture.CaptureScreenshot("Screenshots/Gradient3Cumulonimbus.png");
 	}
 
 	private void OnValidate()
 	{
 		// Recreate textures if needed
-		TextureHelper.CreateTexture3D(ref m_ShapeNoise, ShapeNoiseResolution, "Shape Noise");
-		TextureHelper.CreateTexture3D(ref m_DetailNoise, DetailNoiseResolution, "Detail Noise");
+		TextureHelper.CreateTexture3D(ref m_ShapeNoise, ShapeNoiseResolution, GraphicsFormat.R8G8B8A8_UNorm, "Shape Noise");
+		TextureHelper.CreateTexture3D(ref m_DetailNoise, DetailNoiseResolution, GraphicsFormat.R8G8B8A8_UNorm, "Detail Noise");
+		TextureHelper.CreateTexture2D(ref m_HeightDensityGradient, 128, 128, GraphicsFormat.R8_UNorm, "Height Gradient");
+
+		// TODO: Use a structured buffer to pass all the parameters
 
 		m_CloudShapeNoise.SetInt("WorleyMethod", WorleyMethod);
 		m_CloudShapeNoise.SetInt("PerlinMethod", PerlinMethod);
@@ -120,6 +126,7 @@ public class CloudsMaster : MonoBehaviour
 		m_CloudShapeNoise.SetInt("Frequency", ShapeNoiseFrequency);
 		m_CloudShapeNoise.SetFloat("ResolutionInv", 1.0f / ShapeNoiseResolution);
 		m_CloudShapeNoise.SetTexture(0, "NoiseOutput", m_ShapeNoise);
+		m_CloudShapeNoise.SetTexture(0, "HeightGradient", m_HeightDensityGradient);
 		GraphicsHelper.Dispatch(m_CloudShapeNoise, ShapeNoiseResolution, ShapeNoiseResolution, ShapeNoiseResolution, 0);
 
 		m_CloudShapeNoise.SetInt("WorleyMethod", WorleyMethod);
@@ -128,6 +135,16 @@ public class CloudsMaster : MonoBehaviour
 		m_CloudShapeNoise.SetInt("Frequency", DetailNoiseFrequency);
 		m_CloudShapeNoise.SetFloat("ResolutionInv", 1.0f / DetailNoiseResolution);
 		m_CloudShapeNoise.SetTexture(1, "NoiseOutput", m_DetailNoise);
+		m_CloudShapeNoise.SetTexture(1, "HeightGradient", m_HeightDensityGradient);
 		GraphicsHelper.Dispatch(m_CloudShapeNoise, DetailNoiseResolution, DetailNoiseResolution, DetailNoiseResolution, 1);
+
+		m_CloudShapeNoise.SetInt("WorleyMethod", WorleyMethod);
+		m_CloudShapeNoise.SetInt("PerlinMethod", PerlinMethod);
+		m_CloudShapeNoise.SetInt("Seed", Seed);
+		m_CloudShapeNoise.SetInt("Frequency", DetailNoiseFrequency);
+		m_CloudShapeNoise.SetFloat("ResolutionInv", 1.0f / m_HeightDensityGradient.width);
+		m_CloudShapeNoise.SetTexture(2, "NoiseOutput", m_DetailNoise);
+		m_CloudShapeNoise.SetTexture(2, "HeightGradient", m_HeightDensityGradient);
+		GraphicsHelper.Dispatch(m_CloudShapeNoise, 128, 128, 128, 2);
 	}
 }

@@ -66,8 +66,8 @@ public class NoiseGenerator : MonoBehaviour
 		Debug.Log("Updating Noise");
 
 		// Re-create the textures if needed
-		TextureHelper.CreateTexture3D(ref m_ShapeTexture, ShapeTextureResolution, "CloudShapeTexture");
-		TextureHelper.CreateTexture3D(ref m_DetailTexture, DetailTextureResolution, "CloudDetailTexture");
+		// TextureHelper.CreateTexture3D(ref m_ShapeTexture, ShapeTextureResolution, "CloudShapeTexture");
+		// TextureHelper.CreateTexture3D(ref m_DetailTexture, DetailTextureResolution, "CloudDetailTexture");
 
 		SetNoiseSettings(ActiveSettings);
 

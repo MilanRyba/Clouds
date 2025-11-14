@@ -1,5 +1,6 @@
 #pragma kernel CloudShapeNoiseCS
 #pragma kernel CloudDetailNoiseCS
+#pragma kernel CloudHeightGradientCS
 
 #include "Common.hlsl"
 #include "Noise.hlsl"
@@ -12,6 +13,7 @@ uint WorleyMethod;
 uint PerlinMethod;
 
 RWTexture3D<float4> NoiseOutput;
+RWTexture2D<float> HeightGradient;
 
 float PerlinFBM(float3 uvw, float frequency, int octaves)
 {
@@ -107,4 +109,27 @@ void CloudDetailNoiseCS(uint3 id : SV_DispatchThreadID)
     noiseResults.b = WorleyFBM(uvw, Frequency * 4);
     
     NoiseOutput[id] = noiseResults;
+}
+
+[numthreads(8, 8, 8)]
+void CloudHeightGradientCS(uint3 id : SV_DispatchThreadID)
+{
+    float3 uvw = TexelToUV(id, ResolutionInv);
+    float cloudType = uvw.x;
+    float height = uvw.y;
+
+    const float4 stratusGradient = float4(0.0f, 0.07f, 0.08f, 0.15f);
+    const float4 cumulusGradient = float4(0.0f, 0.2f, 0.42f, 0.6f);
+    const float4 cumulonimbusGradient = float4(0.0f, 0.08f, 0.75f, 0.98f);
+
+    float a = 1.0f - saturate(cloudType * 2.0f);
+    float b = 1.0f - abs(cloudType - 0.5f) * 2.0f;
+    float c = saturate(cloudType - 0.5f) * 2.0f;
+    float4 gradient = stratusGradient * a + cumulusGradient * b + cumulonimbusGradient * c;
+
+    float v1 = saturate(InverseLerp(height, gradient.x, gradient.y));
+    float v2 = saturate(InverseLerp(height, gradient.w, gradient.z));
+    float v = v1 * v2;
+
+    HeightGradient[id.xy] = v;
 }

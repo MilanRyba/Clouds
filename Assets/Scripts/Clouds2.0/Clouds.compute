@@ -21,9 +21,11 @@ float GlobalDensity;
 float GlobalScale;
 float ShapeNoiseScale;
 float Coverage;
+float CloudType;
 
 Texture3D ShapeTexture;
 Texture3D DetailTexture;
+Texture2D HeightGradient;
 
 Texture2D SceneTexture;
 Texture2D DepthTexture;
@@ -78,8 +80,18 @@ bool RaySphereIntersect(float3 rayOrigin, float3 rayDirection, float3 sphereCent
     return true;
 }
 
+// Fractional value for sample position in the cloud layer
+float GetHeightFractionForPoint(float3 position, float2 cloudsMinMax)
+{
+    // Get global fractional position in cloud zone
+    float height_fraction = (position.y - cloudsMinMax.x) / (cloudsMinMax.y - cloudsMinMax.x);
+    return saturate(height_fraction);
+}
+
 float SampleCloudDensity(float3 p)
 {
+    float heightFraction = GetHeightFractionForPoint(p, float2(BoundsMin.y, BoundsMax.y));
+    
     p *= GlobalScale;
     
     // Read the low-frequency Perlin-Worley noise and Worley noises.
@@ -91,6 +103,9 @@ float SampleCloudDensity(float3 p)
 
     // Define the base cloud shape by dilating it with the low-frequency FBM made of Worley noise
     float baseCloud = Remap(lowFrequencyNoises.r, (1.0 - lowFreqFBM), 1.0, 0.0, 1.0);
+    
+    float densityHeightGradient = HeightGradient.SampleLevel(sLinearClamp, float2(CloudType, heightFraction), 0).x;
+    baseCloud *= densityHeightGradient;
     
     baseCloud = Remap(baseCloud, 1.0f - Coverage, 1.0f, 0.0f, 1.0f);
     baseCloud *= Coverage;
@@ -191,8 +206,10 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(300.0f, 300.0f));
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
-            float3 pos = float3(debugUV.x, TextureSlice, debugUV.y);
-            Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
+            // float3 pos = float3(debugUV.x, TextureSlice, debugUV.y);
+            // Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
+            float value = HeightGradient.SampleLevel(sLinearClamp, debugUV, 0).r;
+            Output[id.xy] = value;
             return;
         }
     }
