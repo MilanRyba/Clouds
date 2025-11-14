@@ -484,16 +484,17 @@ MonoBehaviour:
   Seed: 0
   ShapeNoiseFrequency: 4
   ShapeNoiseResolution: 128
-  ShapeNoiseScale: 0.22
+  ShapeNoiseScale: 0.13
   DetailNoiseFrequency: 3
   DetailNoiseResolution: 32
   DetailNoiseScale: 3
-  Container: {fileID: 339031172}
-  RayStepSize: 1.35
+  RayStepSize: 4.21
   GlobalDensity: 0.102
   GlobalScale: 0.0011
-  Coverage: 0.904
+  Coverage: 0.892
   CloudType: 1
+  PlanetRadius: 20089
+  AtmosphereHeightRange: {x: 1564.2, y: 2350}
   EnableDebug: 0
   TextureSlice: 0
   ActiveChannel: 1

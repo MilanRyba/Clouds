@@ -10,8 +10,8 @@ float4x4 CameraInverseProjection;
 float NearZ;
 float FarZ;
 
-float3 BoundsMin;
-float3 BoundsMax;
+float PlanetRadius;
+float2 AtmosphereHeightRange;
 
 float3 SunDirection;
 float3 SunColor;
@@ -41,56 +41,36 @@ uint Debug;
 float TextureSlice;
 float4 ChannelMask;
 
-// Returns distance to first and second box intersection
-bool RayBoxIntersect(float3 boundsMin, float3 boundsMax, float3 rayOrigin, float3 rayDir, out float2 hit)
-{
-    float3 invRaydir = 1.0 / rayDir;
-
-    float3 t0 = (boundsMin - rayOrigin) * invRaydir;
-    float3 t1 = (boundsMax - rayOrigin) * invRaydir;
-    float3 tmin = min(t0, t1);
-    float3 tmax = max(t0, t1);
-                
-    float dstA = max(max(tmin.x, tmin.y), tmin.z);
-    float dstB = min(tmax.x, min(tmax.y, tmax.z));
-    
-    if (dstA > dstB)
-    {
-        hit = -1;
-        return false;
-    }
-    
-    hit = float2(dstA, dstB);
-    return true;
-}
-
 bool RaySphereIntersect(float3 rayOrigin, float3 rayDirection, float3 sphereCenter, float sphereRadius, out float2 intersection)
 {
     float3 oc = rayOrigin - sphereCenter;
-    float b = dot(oc, rayDirection);
+    float a = dot(rayDirection, rayDirection);
+    float b = 2.0 * dot(oc, rayDirection);
     float c = dot(oc, oc) - sphereRadius * sphereRadius;
-    float h = b * b - c;
-    if (h < 0.0)
+    float discriminant = b * b - 4 * a * c;
+    if (discriminant < 0)
     {
-        intersection = -1.0f;
+        intersection = -1.0;
         return false;
     }
-    h = sqrt(h);
-    intersection = float2(-b - h, -b + h);
+    
+    discriminant = sqrt(discriminant);
+    intersection = float2((-b - discriminant) / (2.0 * a), (-b + discriminant) / (2.0 * a));
     return true;
 }
 
 // Fractional value for sample position in the cloud layer
-float GetHeightFractionForPoint(float3 position, float2 cloudsMinMax)
+float GetHeightFractionForPoint(float height, float2 cloudsMinMax)
 {
     // Get global fractional position in cloud zone
-    float height_fraction = (position.y - cloudsMinMax.x) / (cloudsMinMax.y - cloudsMinMax.x);
+    float height_fraction = (height - cloudsMinMax.x) / (cloudsMinMax.y - cloudsMinMax.x);
     return saturate(height_fraction);
 }
 
 float SampleCloudDensity(float3 p)
 {
-    float heightFraction = GetHeightFractionForPoint(p, float2(BoundsMin.y, BoundsMax.y));
+    float heightAboveSeaLevel = length(p - float3(0, -PlanetRadius, 0));
+    float heightFraction = GetHeightFractionForPoint(heightAboveSeaLevel - PlanetRadius, AtmosphereHeightRange);
     
     p *= GlobalScale;
     
@@ -132,25 +112,36 @@ float4 RenderClouds(float3 rayOrigin, float3 rayDirection, float maxDepth)
     float minT = -1e10;
     float maxT = -1e10;
     
-    float2 hit;
-    if (RayBoxIntersect(BoundsMin, BoundsMax, rayOrigin, rayDirection, hit))
+    float2 atmosphereTopHit;
+    if (RaySphereIntersect(rayOrigin, rayDirection, float3(0, -PlanetRadius, 0), PlanetRadius + AtmosphereHeightRange.y, atmosphereTopHit))
     {
-        if (all(hit > 0.0))
+        float2 atmosphereBottomHit;
+        if (RaySphereIntersect(rayOrigin, rayDirection, float3(0, -PlanetRadius, 0), PlanetRadius + AtmosphereHeightRange.x, atmosphereBottomHit))
         {
-            // Ray hit the box from outside
-            // minT is the closer intersection and maxT is the farther one
-            minT = min(hit.x, hit.y);
-            maxT = max(hit.x, hit.y);
+            // If both hits are positive we are outside the outer atmosphere -> take closer intersection
+            // If one is positive and one negative, we are inside the outer atmosphere -> take the intersection in front os us
+            float currentTop = all(atmosphereTopHit > 0.0) ? min(atmosphereTopHit.x, atmosphereTopHit.y) : max(atmosphereTopHit.x, atmosphereTopHit.y);
+            
+            // Analogous for the bottom layer
+            float currentBottom = all(atmosphereBottomHit > 0.0) ? min(atmosphereBottomHit.x, atmosphereBottomHit.y) : max(atmosphereBottomHit.x, atmosphereBottomHit.y);
+            
+            if (all(atmosphereBottomHit > 0.0))
+            {
+                currentTop = max(0.0, min(atmosphereTopHit.x, atmosphereTopHit.y));
+            }
+            
+            minT = min(currentTop, currentBottom);
+            maxT = max(currentTop, currentBottom);
         }
         else
         {
-            // Ray hit the box from inside
-            minT = 0.0;
-            maxT = max(hit.x, hit.y);
+            minT = atmosphereTopHit.x;
+            maxT = atmosphereTopHit.y;
         }
     }
     else
     {
+        // We are outside the atmosphere and are not looking at it
         return float4(0, 0, 0, 1);
     }
     
@@ -230,7 +221,16 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     direction = mul(CameraToWorld, float4(direction, 0.0f)).xyz;
     direction = normalize(direction);
     
-    
+    float2 planetHit;
+    if (RaySphereIntersect(origin, direction, float3(0, -PlanetRadius, 0), PlanetRadius, planetHit))
+    {
+        float hit = all(planetHit > 0) ? planetHit.x : planetHit.y;
+        if (hit > 0 && hit < linearDepth)
+        {
+            linearDepth = 0;
+        }
+    }
+        
     float4 scatteringTransmittance = RenderClouds(origin, direction, linearDepth);
     float3 color = sceneColor.rgb * scatteringTransmittance.w + scatteringTransmittance.xyz;    
     Output[id.xy] = float4(color, 1.0);

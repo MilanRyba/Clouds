@@ -22,13 +22,16 @@ public class CloudsMaster : MonoBehaviour
 	[Range(0.1f, 5.0f)] public float DetailNoiseScale = 0.3f;
 
 	[Header("Clouds")]
-	public Transform Container;
+	// public Transform Container;
 
 	[Range(0.01f, 10.0f)]   public float RayStepSize = 0.15f;
 	[Range(0.0f, 1.0f)]     public float GlobalDensity = 0.1f;
 	[Range(0.01f, 0.0005f)] public float GlobalScale = 0.001f;
 	[Range(0.0f, 1.0f)]     public float Coverage = 0.9f;
 	[Range(0.0f, 1.0f)]		public float CloudType = 0.5f;
+
+	[Range(1000.0f, 1000000.0f)] public float PlanetRadius = 60000.0f; // Earth's radius in meters
+	public Vector2 AtmosphereHeightRange = new Vector2(200.0f, 900.0f);
 
 	[Header("Debug")]
 
@@ -77,8 +80,8 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetFloat("NearZ", camera.nearClipPlane);
 		m_Clouds.SetFloat("FarZ", camera.farClipPlane);
 
-		m_Clouds.SetVector("BoundsMin", Container.position - Container.localScale / 2);
-		m_Clouds.SetVector("BoundsMax", Container.position + Container.localScale / 2);
+		m_Clouds.SetFloat("PlanetRadius", PlanetRadius);
+		m_Clouds.SetVector("AtmosphereHeightRange", AtmosphereHeightRange);
 
 		Light sun = FindObjectOfType<Light>();
 		m_Clouds.SetVector("SunDirection", sun.transform.forward);
@@ -108,7 +111,7 @@ public class CloudsMaster : MonoBehaviour
 		Graphics.Blit(m_IntermediateTexture, destination);
 
 		if (Application.isPlaying)
-			ScreenCapture.CaptureScreenshot("Screenshots/Gradient3Cumulonimbus.png");
+			ScreenCapture.CaptureScreenshot("Screenshots/OldIntersection.png");
 	}
 
 	private void OnValidate()
@@ -117,8 +120,6 @@ public class CloudsMaster : MonoBehaviour
 		TextureHelper.CreateTexture3D(ref m_ShapeNoise, ShapeNoiseResolution, GraphicsFormat.R8G8B8A8_UNorm, "Shape Noise");
 		TextureHelper.CreateTexture3D(ref m_DetailNoise, DetailNoiseResolution, GraphicsFormat.R8G8B8A8_UNorm, "Detail Noise");
 		TextureHelper.CreateTexture2D(ref m_HeightDensityGradient, 128, 128, GraphicsFormat.R8_UNorm, "Height Gradient");
-
-		// TODO: Use a structured buffer to pass all the parameters
 
 		m_CloudShapeNoise.SetInt("WorleyMethod", WorleyMethod);
 		m_CloudShapeNoise.SetInt("PerlinMethod", PerlinMethod);
