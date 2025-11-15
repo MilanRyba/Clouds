@@ -91,6 +91,7 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetFloat("GlobalDensity", GlobalDensity);
 		m_Clouds.SetFloat("GlobalScale", GlobalScale);
 		m_Clouds.SetFloat("ShapeNoiseScale", ShapeNoiseScale);
+		m_Clouds.SetFloat("DetailNoiseScale", DetailNoiseScale);
 		m_Clouds.SetFloat("Coverage", Coverage);
 		m_Clouds.SetFloat("CloudType", CloudType);
 		
@@ -111,7 +112,7 @@ public class CloudsMaster : MonoBehaviour
 		Graphics.Blit(m_IntermediateTexture, destination);
 
 		if (Application.isPlaying)
-			ScreenCapture.CaptureScreenshot("Screenshots/OldIntersection.png");
+			ScreenCapture.CaptureScreenshot("Screenshots/CloudsDetail.png");
 	}
 
 	private void OnValidate()

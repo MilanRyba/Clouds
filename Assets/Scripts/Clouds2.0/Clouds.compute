@@ -20,6 +20,7 @@ float RayStepSize;
 float GlobalDensity;
 float GlobalScale;
 float ShapeNoiseScale;
+float DetailNoiseScale;
 float Coverage;
 float CloudType;
 
@@ -84,13 +85,30 @@ float SampleCloudDensity(float3 p)
     // Define the base cloud shape by dilating it with the low-frequency FBM made of Worley noise
     float baseCloud = Remap(lowFrequencyNoises.r, (1.0 - lowFreqFBM), 1.0, 0.0, 1.0);
     
+    // Apply the density height gradient to the base cloud shape
     float densityHeightGradient = HeightGradient.SampleLevel(sLinearClamp, float2(CloudType, heightFraction), 0).x;
     baseCloud *= densityHeightGradient;
     
+    // Use remap to apply the cloud coverage attribute
     baseCloud = Remap(baseCloud, 1.0f - Coverage, 1.0f, 0.0f, 1.0f);
+    
+    // Multiply the result by the cloud coverage attribute 
+    // so that smaller clouds are lighter and more aesthetically pleasing
     baseCloud *= Coverage;
     
-    return saturate(baseCloud * GlobalDensity);
+    // Sample high-frequency noises
+    float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, p * DetailNoiseScale, 0).rgb;
+    
+    // Build high-frequency Worley noise FBM
+    float highFreqFBM = dot(highFrequencyNoises, float3(0.625, 0.25, 0.125));
+    
+    // Transition from wispy shapes to billowy shapes over height
+    float highFreqNoiseModifier = lerp(highFreqFBM, 1.0 - highFreqFBM, saturate(heightFraction * 10.0));
+    
+    // Erode the base cloud shape with the distorted high-frequency Worley noises
+    float finalCloud = Remap(baseCloud, highFreqNoiseModifier * 0.4, 1.0, 0.0, 1.0);
+    
+    return saturate(finalCloud * GlobalDensity);
 }
 
 float LightMarch(float3 rayOrigin, float3 rayDirection)
