@@ -30,6 +30,12 @@ public class CloudsMaster : MonoBehaviour
 	[Range(0.0f, 1.0f)]     public float Coverage = 0.9f;
 	[Range(0.0f, 1.0f)]		public float CloudType = 0.5f;
 
+	[Range(0.0f, 360.0f)] public float WindAngle = 0.0f;
+	[Range(0.01f, 10.0f)] public float CloudSpeed = 1.0f;
+
+	// CloudTopOffset pushes the tops of the clouds along this wind direction by this many units
+	[Range(0.0f, 250.0f)] public float CloudTopOffset = 100.0f;
+
 	[Range(1000.0f, 1000000.0f)] public float PlanetRadius = 60000.0f; // Earth's radius in meters
 	public Vector2 AtmosphereHeightRange = new Vector2(200.0f, 900.0f);
 
@@ -94,6 +100,11 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetFloat("DetailNoiseScale", DetailNoiseScale);
 		m_Clouds.SetFloat("Coverage", Coverage);
 		m_Clouds.SetFloat("CloudType", CloudType);
+
+		m_Clouds.SetVector("WindDirection", new Vector3(Mathf.Cos(WindAngle * Mathf.Deg2Rad), 0, -Mathf.Sin(WindAngle * Mathf.Deg2Rad)));
+		m_Clouds.SetFloat("CloudSpeed", CloudSpeed);
+		m_Clouds.SetFloat("CloudTopOffset", CloudTopOffset);
+		m_Clouds.SetInt("Time", Time.frameCount);
 		
 		m_Clouds.SetTexture(0, "ShapeTexture", m_ShapeNoise);
 		m_Clouds.SetTexture(0, "DetailTexture", m_DetailNoise);
@@ -112,7 +123,7 @@ public class CloudsMaster : MonoBehaviour
 		Graphics.Blit(m_IntermediateTexture, destination);
 
 		if (Application.isPlaying)
-			ScreenCapture.CaptureScreenshot("Screenshots/CloudsDetail.png");
+			ScreenCapture.CaptureScreenshot("Screenshots/CloudsWind.png");
 	}
 
 	private void OnValidate()

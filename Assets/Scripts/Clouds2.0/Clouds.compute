@@ -24,6 +24,11 @@ float DetailNoiseScale;
 float Coverage;
 float CloudType;
 
+float3 WindDirection = float3(1, 0, 0);
+float CloudSpeed = 10.0;
+float CloudTopOffset = 100.0;
+int Time;
+
 Texture3D ShapeTexture;
 Texture3D DetailTexture;
 Texture2D HeightGradient;
@@ -72,6 +77,12 @@ float SampleCloudDensity(float3 p)
 {
     float heightAboveSeaLevel = length(p - float3(0, -PlanetRadius, 0));
     float heightFraction = GetHeightFractionForPoint(heightAboveSeaLevel - PlanetRadius, AtmosphereHeightRange);
+    
+    // Skew in wind direction
+    p += heightFraction * WindDirection * CloudTopOffset;
+    
+    // Animate clouds in wind direction and add a small upward bias to the wind direction
+    p += (WindDirection + float3(0, 1, 0)) * Time * CloudSpeed;
     
     p *= GlobalScale;
     
@@ -228,10 +239,6 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float sceneDepth = DepthTexture.SampleLevel(sPointClamp, uv, 0).r;
     float3 viewRay = normalize(ViewPositionFromDepth(uv, sceneDepth, CameraInverseProjection));
     float linearDepth = sceneDepth == 0 ? 10000000 : length(viewRay);
-
-    // Transform pixel coordinates from [0, 1] to [-1, 1] range
-    // TODO: Try this instead of uv * 2 - 1
-    // float2 centeredUV = float2((id.xy + float2(0.5f, 0.5f)) / ViewportDimensions * 2.0f - 1.0f);
     
     // Create camera ray
     float3 origin = CameraPosition;    

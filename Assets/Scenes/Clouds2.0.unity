@@ -487,12 +487,15 @@ MonoBehaviour:
   ShapeNoiseScale: 0.19
   DetailNoiseFrequency: 3
   DetailNoiseResolution: 32
-  DetailNoiseScale: 3
-  RayStepSize: 3
+  DetailNoiseScale: 3.67
+  RayStepSize: 2.99
   GlobalDensity: 0.083
   GlobalScale: 0.00117
   Coverage: 0.949
-  CloudType: 0.548
+  CloudType: 0.363
+  WindAngle: 0
+  CloudSpeed: 1
+  CloudTopOffset: 0
   PlanetRadius: 60000
   AtmosphereHeightRange: {x: 700, y: 1200}
   EnableDebug: 0
