@@ -36,6 +36,11 @@ public class CloudsMaster : MonoBehaviour
 	// CloudTopOffset pushes the tops of the clouds along this wind direction by this many units
 	[Range(0.0f, 250.0f)] public float CloudTopOffset = 100.0f;
 
+	public bool DualLobPhase = true;
+	[Range(0.0f, 1.0f)] public float ForwardScattering = 0.8f;
+	[Range(-1.0f, 0.0f)] public float BackwardScattering = -0.2f;
+	[Range(0.0f, 1.0f)] public float ScatteringWeight = 0.5f;
+
 	[Range(1000.0f, 1000000.0f)] public float PlanetRadius = 60000.0f; // Earth's radius in meters
 	public Vector2 AtmosphereHeightRange = new Vector2(200.0f, 900.0f);
 
@@ -100,6 +105,10 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetFloat("DetailNoiseScale", DetailNoiseScale);
 		m_Clouds.SetFloat("Coverage", Coverage);
 		m_Clouds.SetFloat("CloudType", CloudType);
+		m_Clouds.SetBool("PhaseMethod", DualLobPhase);
+		m_Clouds.SetFloat("ForwardScattering", ForwardScattering);
+		m_Clouds.SetFloat("BackwardScattering", BackwardScattering);
+		m_Clouds.SetFloat("ScatteringWeight", ScatteringWeight);
 
 		m_Clouds.SetVector("WindDirection", new Vector3(Mathf.Cos(WindAngle * Mathf.Deg2Rad), 0, -Mathf.Sin(WindAngle * Mathf.Deg2Rad)));
 		m_Clouds.SetFloat("CloudSpeed", CloudSpeed);

@@ -29,6 +29,12 @@ float CloudSpeed = 10.0;
 float CloudTopOffset = 100.0;
 int Time;
 
+// Phase function parameters
+int PhaseMethod;
+float ForwardScattering;
+float BackwardScattering;
+float ScatteringWeight;
+
 Texture3D ShapeTexture;
 Texture3D DetailTexture;
 Texture2D HeightGradient;
@@ -46,6 +52,29 @@ RWTexture2D<float4> Output;
 uint Debug;
 float TextureSlice;
 float4 ChannelMask;
+
+static const float PI = 3.1415;
+
+float HenyeyGreenstein(float3 inLightVector, float3 inViewVector, float inG)
+{
+    float cosAngle = dot(inLightVector, inViewVector);
+    return ((1.0 - inG * inG) / pow((1.0 + inG * inG - 2.0 * inG * cosAngle), 3.0 / 2.0)) / 4.0 * PI;
+}
+
+float Phase(float3 inLightVector, float3 inViewVector)
+{
+    if (PhaseMethod == 0)
+    {
+        return HenyeyGreenstein(inLightVector, inViewVector, ForwardScattering);
+    }
+    else if (PhaseMethod == 1)
+    {
+        return lerp(HenyeyGreenstein(inLightVector, inViewVector, ForwardScattering), 
+                    HenyeyGreenstein(inLightVector, inViewVector, BackwardScattering), 0.5);
+    }
+    
+    return 0.0;
+}
 
 bool RaySphereIntersect(float3 rayOrigin, float3 rayDirection, float3 sphereCenter, float sphereRadius, out float2 intersection)
 {
@@ -181,6 +210,8 @@ float4 RenderClouds(float3 rayOrigin, float3 rayDirection, float maxDepth)
     if (minT >= maxT)
         return float4(0, 0, 0, 1);
     
+    float phase = Phase(normalize(-SunDirection), normalize(rayDirection));
+    
     float3 totalScattering = 0.0f;
     float transmittance = 1.0f;
     
@@ -192,7 +223,7 @@ float4 RenderClouds(float3 rayOrigin, float3 rayDirection, float maxDepth)
         if (density > 0.0)
         {
             float3 sunScattering = LightMarch(rayPos, normalize(-SunDirection)) * SunColor;
-            totalScattering += density * transmittance * RayStepSize * sunScattering;
+            totalScattering += density * transmittance * RayStepSize * sunScattering * phase;
             transmittance *= exp(-density * RayStepSize);
             
             if (transmittance < 0.01)
