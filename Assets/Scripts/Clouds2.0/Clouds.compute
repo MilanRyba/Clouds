@@ -1,6 +1,7 @@
 #pragma kernel CSMain
 
 #include "Common.hlsl"
+#include "Noise.hlsl"
 
 float2 ViewportDimensions;
 float2 ViewportDimensionsInv;
@@ -155,12 +156,22 @@ float LightMarch(float3 rayOrigin, float3 rayDirection)
 {
     const uint NumLightMarches = 6;
     
+    const float coneSize = 200.0f;
+    float stepSize = coneSize / NumLightMarches;
+
     float totalDensity = 0;
-    for (uint i = 0; i < NumLightMarches; i++)
+
+    uint seed = HashU32(0);
+    for (uint i = 0; i < NumLightMarches; ++i)
     {
-        rayOrigin += rayDirection * RayStepSize * (i + 1);
-        totalDensity += max(0, SampleCloudDensity(rayOrigin) * RayStepSize);
+        float3 rnd = float3(Random01(seed), Random01(seed), Random01(seed)) / 5.0f;
+        rayOrigin += rayDirection * stepSize + (stepSize * rnd * (i + 1));
+        totalDensity += max(0, SampleCloudDensity(rayOrigin) * stepSize);
     }
+
+    rayOrigin += rayDirection * coneSize * 2;
+    totalDensity += max(0, SampleCloudDensity(rayOrigin) * stepSize);
+    return exp(-totalDensity);
     
     float beersLaw = exp(-totalDensity);
     float powderSugarEffect = 1.0 - exp(-totalDensity * 2.0);
@@ -225,7 +236,7 @@ float4 RenderClouds(float3 rayOrigin, float3 rayDirection, float maxDepth)
         if (density > 0.0)
         {
             float3 sunScattering = LightMarch(rayPos, normalize(-SunDirection)) * SunColor;
-            totalScattering += density * transmittance * RayStepSize * sunScattering * phase;
+            totalScattering += density * transmittance * RayStepSize * (sunScattering * phase + float3(0.2, 0.2, 0.25));
             transmittance *= exp(-density * RayStepSize);
             
             if (transmittance < 0.01)

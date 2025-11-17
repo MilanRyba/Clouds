@@ -262,13 +262,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 653479335}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.02188904, y: -0.72584325, z: 0.6620853, w: -0.18524468}
+  m_LocalRotation: {x: 0.15258782, y: -0.8357373, z: 0.4694918, w: -0.24049456}
   m_LocalPosition: {x: 0, y: 3, z: 3.321}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 72.37, y: -259.604, z: -66.178}
+  m_LocalEulerAnglesHint: {x: 45.345, y: -230.877, z: -43.171}
 --- !u!1 &1275161270
 GameObject:
   m_ObjectHideFlags: 0
@@ -480,25 +480,25 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   PerlinMethod: 1
-  WorleyMethod: 0
+  WorleyMethod: 1
   Seed: 51
   ShapeNoiseFrequency: 4
   ShapeNoiseResolution: 128
   ShapeNoiseScale: 0.19
   DetailNoiseFrequency: 3
   DetailNoiseResolution: 32
-  DetailNoiseScale: 3.67
-  RayStepSize: 2.99
-  GlobalDensity: 0.083
+  DetailNoiseScale: 3.98
+  RayStepSize: 5.63
+  GlobalDensity: 0.035
   GlobalScale: 0.00117
-  Coverage: 0.949
-  CloudType: 0.75
+  Coverage: 0.875
+  CloudType: 0.16
   WindAngle: 0
-  CloudSpeed: 0.5
-  CloudTopOffset: 63
+  CloudSpeed: 0.01
+  CloudTopOffset: 68
   DualLobPhase: 1
-  ForwardScattering: 0.431
-  BackwardScattering: -0.174
+  ForwardScattering: 0.368
+  BackwardScattering: -0.438
   ScatteringWeight: 0.771
   PlanetRadius: 60000
   AtmosphereHeightRange: {x: 500, y: 1200}
