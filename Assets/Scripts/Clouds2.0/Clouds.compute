@@ -162,7 +162,9 @@ float LightMarch(float3 rayOrigin, float3 rayDirection)
         totalDensity += max(0, SampleCloudDensity(rayOrigin) * RayStepSize);
     }
     
-    return exp(-totalDensity);
+    float beersLaw = exp(-totalDensity);
+    float powderSugarEffect = 1.0 - exp(-totalDensity * 2.0);
+    return 2.0 * beersLaw * powderSugarEffect;
 }
 
 float4 RenderClouds(float3 rayOrigin, float3 rayDirection, float maxDepth)
