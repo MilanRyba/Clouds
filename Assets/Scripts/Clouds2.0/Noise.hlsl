@@ -113,3 +113,9 @@ float WorleyNoise(float3 uvw, uint pointsPerRow, uint seed)
     }
     return 1.0f - sqrt(minDistSq);
 }
+
+float InterleavedGradientNoise(float2 uv)
+{
+    const float3 magic = float3(0.06711056f, 0.00583715f, 52.9829189f);
+    return frac(magic.z * frac(dot(uv, magic.xy)));
+}

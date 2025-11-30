@@ -24,7 +24,7 @@ public class CloudsMaster : MonoBehaviour
 	[Header("Clouds")]
 	// public Transform Container;
 
-	[Range(0.01f, 10.0f)]   public float RayStepSize = 0.15f;
+	[Range(1.0f, 40.0f)]   public float RayStepSize = 20.0f;
 	[Range(0.0f, 1.0f)]     public float GlobalDensity = 0.1f;
 	[Range(0.01f, 0.0005f)] public float GlobalScale = 0.001f;
 	[Range(0.0f, 1.0f)]     public float Coverage = 0.9f;
@@ -47,6 +47,7 @@ public class CloudsMaster : MonoBehaviour
 	[Header("Debug")]
 
 	public bool EnableDebug = true;
+	public bool UseJitter = true;
 
 	[Range(0.0f, 1.0f)]
 	public float TextureSlice = 0.0f;
@@ -78,7 +79,7 @@ public class CloudsMaster : MonoBehaviour
 
 	private void OnRenderImage(RenderTexture source, RenderTexture destination)
 	{
-		TextureHelper.CreateTexture2D(ref m_IntermediateTexture, source.width, source.height, source.graphicsFormat, "Clouds Intermediate Texture");
+		TextureHelper.Create2D(ref m_IntermediateTexture, source.width, source.height, source.graphicsFormat, "Clouds Intermediate Texture");
 
 		m_Clouds.SetVector("ViewportDimensions", new Vector2(source.width, source.height));
 		m_Clouds.SetVector("ViewportDimensionsInv", new Vector2(1.0f / source.width, 1.0f / source.height));
@@ -124,6 +125,7 @@ public class CloudsMaster : MonoBehaviour
 
 		// Debug parameters
 		m_Clouds.SetBool("Debug", EnableDebug);
+		m_Clouds.SetBool("UseJitter", UseJitter);
 		m_Clouds.SetFloat("TextureSlice", TextureSlice);
 		m_Clouds.SetVector("ChannelMask", ChannelMask);
 
@@ -138,9 +140,9 @@ public class CloudsMaster : MonoBehaviour
 	private void OnValidate()
 	{
 		// Recreate textures if needed
-		TextureHelper.CreateTexture3D(ref m_ShapeNoise, ShapeNoiseResolution, GraphicsFormat.R8G8B8A8_UNorm, "Shape Noise");
-		TextureHelper.CreateTexture3D(ref m_DetailNoise, DetailNoiseResolution, GraphicsFormat.R8G8B8A8_UNorm, "Detail Noise");
-		TextureHelper.CreateTexture2D(ref m_HeightDensityGradient, 128, 128, GraphicsFormat.R8_UNorm, "Height Gradient");
+		TextureHelper.Create3D(ref m_ShapeNoise, ShapeNoiseResolution, GraphicsFormat.R8G8B8A8_UNorm, "Shape Noise");
+		TextureHelper.Create3D(ref m_DetailNoise, DetailNoiseResolution, GraphicsFormat.R8G8B8A8_UNorm, "Detail Noise");
+		TextureHelper.Create2D(ref m_HeightDensityGradient, 128, 128, GraphicsFormat.R8_UNorm, "Height Gradient");
 
 		m_CloudShapeNoise.SetInt("WorleyMethod", WorleyMethod);
 		m_CloudShapeNoise.SetInt("PerlinMethod", PerlinMethod);

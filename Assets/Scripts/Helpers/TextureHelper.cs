@@ -9,12 +9,12 @@ namespace Helpers
 		#region Create
 
 		// Create 2D texture with a given resolution
-		public static void CreateTexture2D(ref RenderTexture outTexture, int inResolution, GraphicsFormat inFormat, string inName)
+		public static void Create2D(ref RenderTexture outTexture, int inResolution, GraphicsFormat inFormat, string inName)
 		{
-			CreateTexture2D(ref outTexture, inResolution, inResolution, inFormat, inName);
+			Create2D(ref outTexture, inResolution, inResolution, inFormat, inName);
 		}
 
-		public static void CreateTexture2D(ref RenderTexture outTexture, int inWidth, int inHeight, GraphicsFormat inFormat, string inName)
+		public static void Create2D(ref RenderTexture outTexture, int inWidth, int inHeight, GraphicsFormat inFormat, string inName)
 		{
 			if (outTexture == null || !outTexture.IsCreated() ||
 				outTexture.width != inWidth || outTexture.height != inHeight ||
@@ -35,7 +35,7 @@ namespace Helpers
 			outTexture.filterMode = FilterMode.Point;
 		}
 
-		public static void CreateTexture3D(ref RenderTexture outTexture, int inResolution, GraphicsFormat inFormat, string inName)
+		public static void Create3D(ref RenderTexture outTexture, int inResolution, GraphicsFormat inFormat, string inName)
 		{
 			if (outTexture == null || !outTexture.IsCreated() || 
 				outTexture.width != inResolution || outTexture.height != inResolution || outTexture.volumeDepth != inResolution || 

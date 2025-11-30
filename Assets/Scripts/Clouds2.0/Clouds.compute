@@ -51,6 +51,7 @@ SamplerState sPointClamp;
 RWTexture2D<float4> Output;
 
 uint Debug;
+uint UseJitter;
 float TextureSlice;
 float4 ChannelMask;
 
@@ -178,7 +179,7 @@ float LightMarch(float3 rayOrigin, float3 rayDirection)
     return 2.0 * beersLaw * powderSugarEffect;
 }
 
-float4 RenderClouds(float3 rayOrigin, float3 rayDirection, float maxDepth)
+float4 RenderClouds(float3 rayOrigin, float3 rayDirection, float maxDepth, uint2 uv)
 {
     float minT = -1e10;
     float maxT = -1e10;
@@ -222,6 +223,12 @@ float4 RenderClouds(float3 rayOrigin, float3 rayDirection, float maxDepth)
     // The scene is obscuring the cloud layer
     if (minT >= maxT)
         return float4(0, 0, 0, 1);
+    
+    if (UseJitter)
+    {
+        float offset = InterleavedGradientNoise(float2(uv) + Time);
+        rayOrigin += rayDirection * offset * RayStepSize;
+    }
     
     float phase = Phase(normalize(-SunDirection), normalize(rayDirection));
     
@@ -270,10 +277,8 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(300.0f, 300.0f));
         if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
         {
-            // float3 pos = float3(debugUV.x, TextureSlice, debugUV.y);
-            // Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
-            float value = HeightGradient.SampleLevel(sLinearClamp, debugUV, 0).r;
-            Output[id.xy] = value;
+            float3 pos = float3(debugUV.x, TextureSlice, debugUV.y);
+            Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
             return;
         }
     }
@@ -300,7 +305,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         }
     }
         
-    float4 scatteringTransmittance = RenderClouds(origin, direction, linearDepth);
+    float4 scatteringTransmittance = RenderClouds(origin, direction, linearDepth, id.xy);
     float3 color = sceneColor.rgb * scatteringTransmittance.w + scatteringTransmittance.xyz;    
     Output[id.xy] = float4(color, 1.0);
 }
