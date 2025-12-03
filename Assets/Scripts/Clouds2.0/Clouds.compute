@@ -17,7 +17,9 @@ float2 AtmosphereHeightRange;
 float3 SunDirection;
 float3 SunColor;
 
-float RayStepSize;
+int NumSteps;
+float LargeStepSizeMultiplier;
+
 float GlobalDensity;
 float GlobalScale;
 float ShapeNoiseScale;
@@ -56,6 +58,9 @@ float TextureSlice;
 float4 ChannelMask;
 
 static const float PI = 3.1415;
+#define PLANET_CENTER float3(0, -PlanetRadius, 0)
+#define CLOUDS_BOTTOM_LAYER (PlanetRadius + AtmosphereHeightRange.x)
+#define CLOUDS_TOP_LAYER (PlanetRadius + AtmosphereHeightRange.y)
 
 float HenyeyGreenstein(float3 inLightVector, float3 inViewVector, float inG)
 {
@@ -78,23 +83,28 @@ float Phase(float3 inLightVector, float3 inViewVector)
     return 0.0;
 }
 
-bool RaySphereIntersect(float3 rayOrigin, float3 rayDirection, float3 sphereCenter, float sphereRadius, out float2 intersection)
+float2 RaySphereIntersection(float3 center, float radius, float3 origin, float3 direction)
 {
-    float3 oc = rayOrigin - sphereCenter;
-    float a = dot(rayDirection, rayDirection);
-    float b = 2.0 * dot(oc, rayDirection);
-    float c = dot(oc, oc) - sphereRadius * sphereRadius;
-    float discriminant = b * b - 4 * a * c;
-    if (discriminant < 0)
+    float3 of = origin - center;
+    const float a = 1.0;
+    float b = 2.0 * dot(of, direction);
+    float c = dot(of, of) - radius * radius;
+    float discriminant = b * b - 4.0 * a * c;
+
+    if (discriminant > 0)
     {
-        intersection = -1.0;
-        return false;
+        discriminant = sqrt(discriminant);
+        float dstToSphereNear = max(0.0, (-b - discriminant) / (2.0 * a));
+        float dstToSphereFar = (-b + discriminant) / (2.0 * a);
+
+        if (dstToSphereFar >= 0.0)
+        {
+            return float2(dstToSphereNear, dstToSphereFar - dstToSphereNear);
+        }
     }
-    
-    discriminant = sqrt(discriminant);
-    intersection = float2((-b - discriminant) / (2.0 * a), (-b + discriminant) / (2.0 * a));
-    return true;
+    return float2(0.0, 0.0);
 }
+
 
 // Fractional value for sample position in the cloud layer
 float GetHeightFractionForPoint(float height, float2 cloudsMinMax)
@@ -104,7 +114,7 @@ float GetHeightFractionForPoint(float height, float2 cloudsMinMax)
     return saturate(height_fraction);
 }
 
-float SampleCloudDensity(float3 p)
+float SampleCloudDensity(float3 p, bool cheapSample)
 {
     float heightAboveSeaLevel = length(p - float3(0, -PlanetRadius, 0));
     float heightFraction = GetHeightFractionForPoint(heightAboveSeaLevel - PlanetRadius, AtmosphereHeightRange);
@@ -125,7 +135,7 @@ float SampleCloudDensity(float3 p)
     float lowFreqFBM = dot(lowFrequencyNoises.gba, float3(0.625, 0.25, 0.125));
 
     // Define the base cloud shape by dilating it with the low-frequency FBM made of Worley noise
-    float baseCloud = Remap(lowFrequencyNoises.r, (1.0 - lowFreqFBM), 1.0, 0.0, 1.0);
+    float baseCloud = Remap(lowFrequencyNoises.r, -(1.0 - lowFreqFBM), 1.0, 0.0, 1.0);
     
     // Apply the density height gradient to the base cloud shape
     float densityHeightGradient = HeightGradient.SampleLevel(sLinearClamp, float2(CloudType, heightFraction), 0).x;
@@ -138,19 +148,22 @@ float SampleCloudDensity(float3 p)
     // so that smaller clouds are lighter and more aesthetically pleasing
     baseCloud *= Coverage;
     
-    // Sample high-frequency noises
-    float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, p * DetailNoiseScale, 0).rgb;
+    if (cheapSample == false)
+    {
+        // Sample high-frequency noises
+        float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, p * DetailNoiseScale, 0).rgb;
     
-    // Build high-frequency Worley noise FBM
-    float highFreqFBM = dot(highFrequencyNoises, float3(0.625, 0.25, 0.125));
+        // Build high-frequency Worley noise FBM
+        float highFreqFBM = dot(highFrequencyNoises, float3(0.625, 0.25, 0.125));
     
-    // Transition from wispy shapes to billowy shapes over height
-    float highFreqNoiseModifier = lerp(highFreqFBM, 1.0 - highFreqFBM, saturate(heightFraction * 10.0));
+        // Transition from wispy shapes to billowy shapes over height
+        float highFreqNoiseModifier = lerp(highFreqFBM, 1.0 - highFreqFBM, saturate(heightFraction * 10.0));
     
-    // Erode the base cloud shape with the distorted high-frequency Worley noises
-    float finalCloud = Remap(baseCloud, highFreqNoiseModifier * 0.4, 1.0, 0.0, 1.0);
+        // Erode the base cloud shape with the distorted high-frequency Worley noises
+        baseCloud = Remap(baseCloud, highFreqNoiseModifier * 0.4, 1.0, 0.0, 1.0);
+    }
     
-    return saturate(finalCloud * GlobalDensity);
+    return saturate(baseCloud * GlobalDensity);
 }
 
 float LightMarch(float3 rayOrigin, float3 rayDirection)
@@ -167,11 +180,11 @@ float LightMarch(float3 rayOrigin, float3 rayDirection)
     {
         float3 rnd = float3(Random01(seed), Random01(seed), Random01(seed)) / 5.0f;
         rayOrigin += rayDirection * stepSize + (stepSize * rnd * (i + 1));
-        totalDensity += max(0, SampleCloudDensity(rayOrigin) * stepSize);
+        totalDensity += max(0, SampleCloudDensity(rayOrigin, true) * stepSize);
     }
 
     rayOrigin += rayDirection * coneSize * 2;
-    totalDensity += max(0, SampleCloudDensity(rayOrigin) * stepSize);
+    totalDensity += max(0, SampleCloudDensity(rayOrigin, true) * stepSize);
     return exp(-totalDensity);
     
     float beersLaw = exp(-totalDensity);
@@ -179,91 +192,106 @@ float LightMarch(float3 rayOrigin, float3 rayDirection)
     return 2.0 * beersLaw * powderSugarEffect;
 }
 
-float4 RenderClouds(float3 rayOrigin, float3 rayDirection, float maxDepth, uint2 uv)
+float4 RenderClouds(float3 startPos, float3 endPos, uint2 uv)
 {
-    float minT = -1e10;
-    float maxT = -1e10;
+    float3 direction = endPos - startPos;
+    float pathLength = length(direction);
+    direction = normalize(direction);
     
-    float2 atmosphereTopHit;
-    if (RaySphereIntersect(rayOrigin, rayDirection, float3(0, -PlanetRadius, 0), PlanetRadius + AtmosphereHeightRange.y, atmosphereTopHit))
-    {
-        float2 atmosphereBottomHit;
-        if (RaySphereIntersect(rayOrigin, rayDirection, float3(0, -PlanetRadius, 0), PlanetRadius + AtmosphereHeightRange.x, atmosphereBottomHit))
-        {
-            // If both hits are positive we are outside the outer atmosphere -> take closer intersection
-            // If one is positive and one negative, we are inside the outer atmosphere -> take the intersection in front os us
-            float currentTop = all(atmosphereTopHit > 0.0) ? min(atmosphereTopHit.x, atmosphereTopHit.y) : max(atmosphereTopHit.x, atmosphereTopHit.y);
-            
-            // Analogous for the bottom layer
-            float currentBottom = all(atmosphereBottomHit > 0.0) ? min(atmosphereBottomHit.x, atmosphereBottomHit.y) : max(atmosphereBottomHit.x, atmosphereBottomHit.y);
-            
-            if (all(atmosphereBottomHit > 0.0))
-            {
-                currentTop = max(0.0, min(atmosphereTopHit.x, atmosphereTopHit.y));
-            }
-            
-            minT = min(currentTop, currentBottom);
-            maxT = max(currentTop, currentBottom);
-        }
-        else
-        {
-            minT = atmosphereTopHit.x;
-            maxT = atmosphereTopHit.y;
-        }
-    }
-    else
-    {
-        // We are outside the atmosphere and are not looking at it
-        return float4(0, 0, 0, 1);
-    }
+    // 0 when looking at the horizon, 1 when looking directly up
+    float horizonFactor = abs(dot(direction, float3(0, 1, 0)));
+    float numSteps = lerp(NumSteps, NumSteps * 0.5, horizonFactor);
+    float baseStepSize = pathLength / numSteps;
     
-    minT = max(0, minT);
-    maxT = min(maxDepth, max(0, maxT));
-    
-    // The scene is obscuring the cloud layer
-    if (minT >= maxT)
-        return float4(0, 0, 0, 1);
-    
+    float3 p = startPos;
     if (UseJitter)
     {
         float offset = InterleavedGradientNoise(float2(uv) + Time);
-        rayOrigin += rayDirection * offset * RayStepSize;
+        p += direction * offset * baseStepSize;
     }
     
-    float phase = Phase(normalize(-SunDirection), normalize(rayDirection));
+    SunDirection = normalize(-SunDirection);
+    float phase = Phase(SunDirection, normalize(direction));
     
     float3 totalScattering = 0.0f;
     float transmittance = 1.0f;
     
-    for (float t = minT; t <= maxT; t += RayStepSize)
+    // for (int i = 0; i < numSteps; i++)
+    // {
+    //     p += direction * baseStepSize;
+    //     float density = SampleCloudDensity(p);
+    //     
+    //     if (density > 0.0)
+    //     {
+    //         float3 sunScattering = LightMarch(p, SunDirection) * SunColor;
+    //         totalScattering += density * transmittance * baseStepSize * (sunScattering * phase + float3(0.2, 0.2, 0.25));
+    //         transmittance *= exp(-density * baseStepSize);
+    //         
+    //         if (transmittance < 0.01)
+    //             break;
+    //     }
+    // }
+    
+    float density = 0.0;
+    float cloudTest = 0.0;
+    int zeroDensitySampleCount = 0;
+    
+    float remainingDst = pathLength;
+    while (remainingDst > 0.0)
     {
-        float3 rayPos = rayOrigin + rayDirection * t;
-        float density = SampleCloudDensity(rayPos);
-        
-        if (density > 0.0)
+        // cloudTest starts as zero so we always evaluate the second case from the beginning
+        if (cloudTest > 0.0)
         {
-            float3 sunScattering = LightMarch(rayPos, normalize(-SunDirection)) * SunColor;
-            totalScattering += density * transmittance * RayStepSize * (sunScattering * phase + float3(0.2, 0.2, 0.25));
-            transmittance *= exp(-density * RayStepSize);
-            
-            if (transmittance < 0.01)
-                break;
+            // Sample density the expensive way by setting the 
+            // last parameter to false, indicating a full sample
+            float sampledDensity = SampleCloudDensity(p, false);
+                
+            // If we just sample a zero, increment the counter
+            if (sampledDensity == 0.0)
+                zeroDensitySampleCount++;
+                
+            // If we are doing an expensive sample that is still potentially in the cloud
+            if (zeroDensitySampleCount != 6)
+            {
+                density += sampledDensity;
+                if (sampledDensity != 0.0)
+                {
+                    // LightMarch just walks in the given direction from the start point and takes X number of lighting samples                    
+                    float3 densityAlongLightRay = LightMarch(p, SunDirection) * SunColor;
+                    totalScattering += density * transmittance * baseStepSize * (densityAlongLightRay * phase + float3(0.2, 0.2, 0.25));
+                    transmittance *= exp(-density * baseStepSize);
+                    
+                    if (transmittance < 0.01)
+                    {
+                        break;
+                    }
+                }
+                    
+                p += direction * baseStepSize;
+                remainingDst -= baseStepSize;
+            }
+            // If not, then set the cloud_test to zero so that we go back to the cheap sample case
+            else
+            {
+                cloudTest = 0.0;
+                zeroDensitySampleCount = 0;
+                
+                // Could we advance 'p' here??
+            }
+        }
+        else
+        {
+            // Sample density the cheap way, only using the low-frequency noise
+            cloudTest = SampleCloudDensity(p, true);
+            if (cloudTest == 0.0)
+            {
+                p += direction * baseStepSize * LargeStepSizeMultiplier;
+                remainingDst -= baseStepSize * LargeStepSizeMultiplier;
+            }
         }
     }
     
     return float4(totalScattering, transmittance);
-}
-
-float LinearizeDepth01(float z)
-{
-    return FarZ / (FarZ + z * (NearZ - FarZ));
-}
-
-float3 ViewPositionFromDepth(float2 uv, float depth, float4x4 projectionInverse)
-{
-    float4 clip = float4(float2(uv.x, 1.0f - uv.y) * 2.0f - 1.0f, 0.0f, 1.0f) * NearZ;
-    float3 viewRay = mul(clip, projectionInverse).xyz;
-    return viewRay * LinearizeDepth01(depth);
 }
 
 [numthreads(16, 16, 1)]
@@ -286,8 +314,13 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);
     float4 sceneColor = SceneTexture.SampleLevel(sPointClamp, uv, 0);
     float sceneDepth = DepthTexture.SampleLevel(sPointClamp, uv, 0).r;
-    float3 viewRay = normalize(ViewPositionFromDepth(uv, sceneDepth, CameraInverseProjection));
-    float linearDepth = sceneDepth == 0 ? 10000000 : length(viewRay);
+    
+    // Geometry in the scene is obscuring the clouds
+    if (sceneDepth > 0.0)
+    {
+        Output[id.xy] = sceneColor;
+        return;
+    }
     
     // Create camera ray
     float3 origin = CameraPosition;    
@@ -295,17 +328,31 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     direction = mul(CameraToWorld, float4(direction, 0.0f)).xyz;
     direction = normalize(direction);
     
-    float2 planetHit;
-    if (RaySphereIntersect(origin, direction, float3(0, -PlanetRadius, 0), PlanetRadius, planetHit))
+    // Test for intersections with planet and clouds layers
+    float2 planetHit = RaySphereIntersection(PLANET_CENTER, PlanetRadius, origin, direction);
+    float2 cloudsBottomLayerHit = RaySphereIntersection(PLANET_CENTER, CLOUDS_BOTTOM_LAYER, origin, direction);
+    float2 cloudsTopLayerHit = RaySphereIntersection(PLANET_CENTER, CLOUDS_TOP_LAYER, origin, direction);
+    
+    // We hit the planet
+    if (planetHit.y > 0.0)
     {
-        float hit = all(planetHit > 0) ? planetHit.x : planetHit.y;
-        if (hit > 0 && hit < linearDepth)
-        {
-            linearDepth = 0;
-        }
+        Output[id.xy] = sceneColor;
+        return;
     }
-        
-    float4 scatteringTransmittance = RenderClouds(origin, direction, linearDepth, id.xy);
-    float3 color = sceneColor.rgb * scatteringTransmittance.w + scatteringTransmittance.xyz;    
+    
+    float dstToStart = cloudsBottomLayerHit.y;
+    float dstToEnd = cloudsTopLayerHit.y;
+    
+    if (dstToEnd <= dstToStart || dstToEnd < 0.0)
+    {
+        Output[id.xy] = float4(1, 0, 1, 1);
+        return;
+    }
+    
+    float3 startPos = origin + direction * dstToStart;
+    float3 endPos = origin + direction * dstToEnd;
+    
+    float4 scatteringTransmittance = RenderClouds(startPos, endPos, id.xy);
+    float3 color = sceneColor.rgb * scatteringTransmittance.w + scatteringTransmittance.xyz;
     Output[id.xy] = float4(color, 1.0);
 }

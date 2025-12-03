@@ -24,17 +24,22 @@ public class CloudsMaster : MonoBehaviour
 	[Header("Clouds")]
 	// public Transform Container;
 
-	[Range(1.0f, 40.0f)]   public float RayStepSize = 20.0f;
-	[Range(0.0f, 1.0f)]     public float GlobalDensity = 0.1f;
-	[Range(0.01f, 0.0005f)] public float GlobalScale = 0.001f;
-	[Range(0.0f, 1.0f)]     public float Coverage = 0.9f;
-	[Range(0.0f, 1.0f)]		public float CloudType = 0.5f;
+	[Range(32, 256), Tooltip("The maximum number of steps the raymarcher will take")]
+	public int NumSteps = 128;
+
+	[Range(2.0f, 4.0f)]
+	public float LargeStepSizeMultiplier = 3.0f;
+
+	[Range(0.0f, 1.0f)]       public float GlobalDensity = 0.1f;
+	[Range(0.0001f, 0.001f)]  public float GlobalScale = 0.001f;
+	[Range(0.0f, 1.0f)]       public float Coverage = 0.9f;
+	[Range(0.0f, 1.0f)]		  public float CloudType = 0.5f;
 
 	[Range(0.0f, 360.0f)] public float WindAngle = 0.0f;
 	[Range(0.01f, 10.0f)] public float CloudSpeed = 1.0f;
 
-	// CloudTopOffset pushes the tops of the clouds along this wind direction by this many units
-	[Range(0.0f, 250.0f)] public float CloudTopOffset = 100.0f;
+	[Range(0.0f, 250.0f), Tooltip("Pushes the tops of the clouds along the wind direction by this many units")]
+	public float CloudTopOffset = 100.0f;
 
 	public bool DualLobPhase = true;
 	[Range(0.0f, 1.0f)] public float ForwardScattering = 0.8f;
@@ -99,7 +104,9 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetVector("SunDirection", sun.transform.forward);
 		m_Clouds.SetVector("SunColor", sun.color);
 
-		m_Clouds.SetFloat("RayStepSize", RayStepSize);
+		m_Clouds.SetInt("NumSteps", NumSteps);
+		m_Clouds.SetFloat("LargeStepSizeMultiplier", LargeStepSizeMultiplier);
+
 		m_Clouds.SetFloat("GlobalDensity", GlobalDensity);
 		m_Clouds.SetFloat("GlobalScale", GlobalScale);
 		m_Clouds.SetFloat("ShapeNoiseScale", ShapeNoiseScale);
@@ -132,9 +139,10 @@ public class CloudsMaster : MonoBehaviour
 		GraphicsHelper.Dispatch(m_Clouds, source.width, source.height);
 
 		Graphics.Blit(m_IntermediateTexture, destination);
+		// Graphics.Blit(source, destination);
 
-		if (Application.isPlaying)
-			ScreenCapture.CaptureScreenshot("Screenshots/CloudsWind.png");
+		// if (Application.isPlaying)
+		// 	ScreenCapture.CaptureScreenshot("Screenshots/CloudsWind.png");
 	}
 
 	private void OnValidate()
