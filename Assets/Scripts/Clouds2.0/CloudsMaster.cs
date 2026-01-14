@@ -1,4 +1,6 @@
 using Helpers;
+using System.IO;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 
@@ -57,6 +59,8 @@ public class CloudsMaster : MonoBehaviour
 	[Range(0.0f, 1.0f)]
 	public float TextureSlice = 0.0f;
 
+	private Texture2D[] m_Slices; // #Saving
+
 	public enum TextureChannel { All, R, G, B, A }
 	public TextureChannel ActiveChannel = TextureChannel.R;
 
@@ -76,11 +80,24 @@ public class CloudsMaster : MonoBehaviour
 
 	[SerializeField] ComputeShader m_Clouds;
 	[SerializeField] ComputeShader m_CloudShapeNoise;
+	[SerializeField] ComputeShader m_SlicerShader; // #Saving
 
 	private RenderTexture m_IntermediateTexture;
 	private RenderTexture m_ShapeNoise;
 	private RenderTexture m_DetailNoise;
 	private RenderTexture m_HeightDensityGradient;
+
+	private Camera m_Camera;
+
+	private void Start()
+	{
+		m_Camera = GetComponent<Camera>();
+
+		OnValidate();
+
+		// SaveNoiseAsPNGs("_CloudShapeA", m_ShapeNoise);
+		// SaveNoiseAsPNGs("_CloudDetailB", m_DetailNoise);
+	}
 
 	private void OnRenderImage(RenderTexture source, RenderTexture destination)
 	{
@@ -90,12 +107,8 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetVector("ViewportDimensionsInv", new Vector2(1.0f / source.width, 1.0f / source.height));
 		m_Clouds.SetVector("CameraPosition", transform.position);
 
-		Camera camera = GetComponent<Camera>();
-		m_Clouds.SetMatrix("CameraToWorld", camera.cameraToWorldMatrix);
-		m_Clouds.SetMatrix("CameraInverseProjection", camera.projectionMatrix.inverse);
-
-		m_Clouds.SetFloat("NearZ", camera.nearClipPlane);
-		m_Clouds.SetFloat("FarZ", camera.farClipPlane);
+		m_Clouds.SetMatrix("CameraToWorld", m_Camera.cameraToWorldMatrix);
+		m_Clouds.SetMatrix("CameraInverseProjection", m_Camera.projectionMatrix.inverse);
 
 		m_Clouds.SetFloat("PlanetRadius", PlanetRadius);
 		m_Clouds.SetVector("AtmosphereHeightRange", AtmosphereHeightRange);
@@ -141,9 +154,59 @@ public class CloudsMaster : MonoBehaviour
 		Graphics.Blit(m_IntermediateTexture, destination);
 		// Graphics.Blit(source, destination);
 
-		// if (Application.isPlaying)
-		// 	ScreenCapture.CaptureScreenshot("Screenshots/CloudsWind.png");
+		if (Application.isPlaying)
+			ScreenCapture.CaptureScreenshot("Screenshots/_CloudHeightGradient.png");
 	}
+
+	private void SaveNoiseAsPNGs(string inFileName, RenderTexture inTexture)
+	{
+#if UNITY_EDITOR
+		int resolution = inTexture.width;
+		m_Slices = new Texture2D[resolution];
+
+		m_SlicerShader.SetTexture(0, "_Input", inTexture);
+
+		for (int layer = 0; layer < resolution; layer++)
+		{
+			var slice = new RenderTexture(resolution, resolution, 0);
+			slice.dimension = UnityEngine.Rendering.TextureDimension.Tex2D;
+			slice.enableRandomWrite = true;
+			slice.Create();
+
+			m_SlicerShader.SetTexture(0, "_Output", slice);
+			m_SlicerShader.SetInt("_Layer", layer);
+
+			GraphicsHelper.Dispatch(m_SlicerShader, resolution, resolution);
+			m_Slices[layer] = GetRTPixels(slice);
+		}
+
+		// Save To Disk as PNG
+		byte[] bytes = m_Slices[0].EncodeToPNG();
+		var dirPath = Application.dataPath + "/../Screenshots/";
+		File.WriteAllBytes(dirPath + inFileName + ".png", bytes);
+#endif
+	}
+
+	// Taken from https://docs.unity3d.com/6000.2/Documentation/ScriptReference/RenderTexture-active.html
+	// TODO: Move into TextureHelper
+	private Texture2D GetRTPixels(RenderTexture rt)
+	{
+		// Remember currently active render texture
+		RenderTexture currentActiveRT = RenderTexture.active;
+
+		// Set the supplied RenderTexture as the active one
+		RenderTexture.active = rt;
+
+		// Create a new Texture2D and read the RenderTexture image into it
+		Texture2D tex = new Texture2D(rt.width, rt.height);
+		tex.ReadPixels(new Rect(0, 0, tex.width, tex.height), 0, 0);
+		tex.Apply();
+
+		// Restore previously active render texture
+		RenderTexture.active = currentActiveRT;
+		return tex;
+	}
+
 
 	private void OnValidate()
 	{

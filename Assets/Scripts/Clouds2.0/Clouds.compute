@@ -8,8 +8,6 @@ float2 ViewportDimensionsInv;
 float3 CameraPosition;
 float4x4 CameraToWorld;
 float4x4 CameraInverseProjection;
-float NearZ;
-float FarZ;
 
 float PlanetRadius;
 float2 AtmosphereHeightRange;
@@ -123,7 +121,7 @@ float SampleCloudDensity(float3 p, bool cheapSample)
     p += heightFraction * WindDirection * CloudTopOffset;
     
     // Animate clouds in wind direction and add a small upward bias to the wind direction
-    p += (WindDirection + float3(0, 1, 0)) * Time * CloudSpeed;
+    p += (WindDirection + float3(0, 0.1, 0)) * Time * CloudSpeed;
     
     p *= GlobalScale;
     
@@ -140,13 +138,14 @@ float SampleCloudDensity(float3 p, bool cheapSample)
     // Apply the density height gradient to the base cloud shape
     float densityHeightGradient = HeightGradient.SampleLevel(sLinearClamp, float2(CloudType, heightFraction), 0).x;
     baseCloud *= densityHeightGradient;
+    // return saturate(baseCloud * GlobalDensity);
     
     // Use remap to apply the cloud coverage attribute
-    baseCloud = Remap(baseCloud, 1.0f - Coverage, 1.0f, 0.0f, 1.0f);
+    baseCloud = Remap(baseCloud, 1.0 - Coverage, 1.0f, 0.0f, 1.0f);
     
     // Multiply the result by the cloud coverage attribute 
     // so that smaller clouds are lighter and more aesthetically pleasing
-    baseCloud *= Coverage;
+    baseCloud *= Coverage;    
     
     if (cheapSample == false)
     {
@@ -219,7 +218,7 @@ float4 RenderClouds(float3 startPos, float3 endPos, uint2 uv)
     // for (int i = 0; i < numSteps; i++)
     // {
     //     p += direction * baseStepSize;
-    //     float density = SampleCloudDensity(p);
+    //     float density = SampleCloudDensity(p, false);
     //     
     //     if (density > 0.0)
     //     {
@@ -231,8 +230,8 @@ float4 RenderClouds(float3 startPos, float3 endPos, uint2 uv)
     //             break;
     //     }
     // }
+    // return float4(totalScattering, transmittance);
     
-    float density = 0.0;
     float cloudTest = 0.0;
     int zeroDensitySampleCount = 0;
     
@@ -253,13 +252,12 @@ float4 RenderClouds(float3 startPos, float3 endPos, uint2 uv)
             // If we are doing an expensive sample that is still potentially in the cloud
             if (zeroDensitySampleCount != 6)
             {
-                density += sampledDensity;
                 if (sampledDensity != 0.0)
                 {
                     // LightMarch just walks in the given direction from the start point and takes X number of lighting samples                    
                     float3 densityAlongLightRay = LightMarch(p, SunDirection) * SunColor;
-                    totalScattering += density * transmittance * baseStepSize * (densityAlongLightRay * phase + float3(0.2, 0.2, 0.25));
-                    transmittance *= exp(-density * baseStepSize);
+                    totalScattering += sampledDensity * transmittance * baseStepSize * (densityAlongLightRay * phase + float3(0.2, 0.2, 0.25));
+                    transmittance *= exp(-sampledDensity * baseStepSize);
                     
                     if (transmittance < 0.01)
                     {

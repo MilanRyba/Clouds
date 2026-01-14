@@ -8,5 +8,5 @@ int _Layer;
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
     uint3 coord = uint3(id.xy, _Layer);
-    _Output[id.xy] = _Input[coord];
+    _Output[id.xy] = float4(_Input[coord].aaa, 1.0);
 }

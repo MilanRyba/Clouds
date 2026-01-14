@@ -173,6 +173,8 @@ void CloudShapeNoiseCS(uint3 id : SV_DispatchThreadID)
     noiseResults.a = WorleyFBM(uvw, Frequency * 4);
     
     float perlin = PerlinFBM(uvw, 3, 7);
+    
+    // TODO: GPU Gems says to set original_min = noiseResults.g
     noiseResults.r = Remap(perlin, 0.0f, 1.0f, noiseResults.g, 1.0f);
     
     NoiseOutput[id] = noiseResults;
