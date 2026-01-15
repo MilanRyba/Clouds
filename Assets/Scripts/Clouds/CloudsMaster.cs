@@ -6,37 +6,40 @@ using UnityEngine.Experimental.Rendering;
 [ExecuteInEditMode, ImageEffectAllowedInSceneView]
 public class CloudsMaster : MonoBehaviour
 {
-	[Header("Noise")]
+	[Header("Weather")]
 
-	[Min(0)]
-	public int Seed = 0;
+	[Range(0.0f, 1.0f)]
+	public float Coverage = 0.9f;
 
-	[Range(1, 10)]      public int ShapeNoiseFrequency = 3;
-	[Range(32, 256)]    public int ShapeNoiseResolution = 128;
-	[Range(0.1f, 5.0f)] public float ShapeNoiseScale = 0.3f;
+	[Range(0.0f, 1.0f), Tooltip("Type of the cloud to render. 0 -> stratus, 0.5 -> stratocumulus, 1 -> cumulus")]
+	public float CloudType = 0.5f;
 
-	[Range(1, 10)]      public int DetailNoiseFrequency = 3;
-	[Range(1, 64)]      public int DetailNoiseResolution = 32;
-	[Range(0.1f, 5.0f)] public float DetailNoiseScale = 0.3f;
+	[Range(0.0f, 360.0f), Tooltip("Angle of the global wind direction")]
+	public float WindAngle = 0.0f;
 
-	[Header("Clouds")]
-
-	[Range(8, 256), Tooltip("The maximum number of steps the raymarcher will take")]
-	public int NumSteps = 128;
-
-	[Range(2.0f, 4.0f)]
-	public float LargeStepSizeMultiplier = 3.0f;
-
-	[Range(0.0f, 1.0f)]       public float GlobalDensity = 0.1f;
-	[Range(0.0001f, 0.001f)]  public float GlobalScale = 0.001f;
-	[Range(0.0f, 1.0f)]       public float Coverage = 0.9f;
-	[Range(0.0f, 1.0f)]		  public float CloudType = 0.5f;
-
-	[Range(0.0f, 360.0f)] public float WindAngle = 0.0f;
-	[Range(0.01f, 10.0f)] public float CloudSpeed = 1.0f;
+	[Range(0.01f, 10.0f), Tooltip("Speed of the clouds")]
+	public float CloudSpeed = 1.0f;
 
 	[Range(0.0f, 250.0f), Tooltip("Pushes the tops of the clouds along the wind direction by this many units")]
 	public float CloudTopOffset = 100.0f;
+
+	[Range(0.0f, 1.0f)]
+	public float GlobalDensity = 0.021f;
+
+	[Range(0.0001f, 0.001f)]
+	public float GlobalScale = 0.001f;
+
+
+	[Header("Clouds")]
+
+	[Range(0.1f, 5.0f), Tooltip("Scale of the base cloud shape")]
+	public float ShapeNoiseScale = 0.3f;
+
+	[Range(0.1f, 5.0f), Tooltip("Scale of the cloud details")]
+	public float DetailNoiseScale = 0.3f;
+
+
+	[Header("Phase")]
 
 	[Range(-0.99f, 0.99f), Tooltip("Directional scattering bias. Values >1 make the light scatter forward and values <1 backward")]
 	public float Eccentricity = 0.65f;
@@ -47,13 +50,39 @@ public class CloudsMaster : MonoBehaviour
 	[Range(0.0f, 1.0f)]
 	public float Spread = 1.0f;
 
-	[Range(1000.0f, 1000000.0f)] public float PlanetRadius = 60000.0f; // Earth's radius in meters
+
+	[Header("Rendering")]
+
+	[Range(8, 256), Tooltip("The maximum number of steps the raymarcher will take")]
+	public int NumSteps = 128;
+
+	[Range(2.0f, 4.0f)]
+	public float LargeStepSizeMultiplier = 3.0f;
+
+	[Tooltip("Offsets the starting sample position during the ray march")]
+	public bool UseJitter = true;
+
+	[Range(1000.0f, 1000000.0f)]
+	public float PlanetRadius = 60000.0f; // Earth's radius in meters
+
 	public Vector2 AtmosphereHeightRange = new Vector2(200.0f, 900.0f);
+
+
+	[Header("Noise")]
+
+	[Range(1, 10)] public int ShapeNoiseFrequency = 3;
+	[Range(32, 256)] public int ShapeNoiseResolution = 128;
+
+	[Range(1, 10)] public int DetailNoiseFrequency = 3;
+	[Range(1, 64)] public int DetailNoiseResolution = 32;
+
 
 	[Header("Debug")]
 
-	public bool EnableDebug = true;
-	public bool UseJitter = true;
+	[Tooltip("Show pixels that ended the ray marching loop early due to low transmittance")]
+	public bool EarlyTerminatedPixels = false;
+
+	public bool ShowTextureSlices = false;	
 
 	[Range(0.0f, 1.0f)]
 	public float TextureSlice = 0.0f;
@@ -87,10 +116,12 @@ public class CloudsMaster : MonoBehaviour
 	private RenderTexture m_HeightDensityGradient;
 
 	private Camera m_Camera;
+	private Light m_Sun;
 
 	private void Start()
 	{
 		m_Camera = GetComponent<Camera>();
+		m_Sun = FindObjectOfType<Light>();
 
 		OnValidate();
 
@@ -112,12 +143,12 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetFloat("PlanetRadius", PlanetRadius);
 		m_Clouds.SetVector("AtmosphereHeightRange", AtmosphereHeightRange);
 
-		Light sun = FindObjectOfType<Light>();
-		m_Clouds.SetVector("SunDirection", sun.transform.forward);
-		m_Clouds.SetVector("SunColor", sun.color);
+		m_Clouds.SetVector("SunDirection", m_Sun.transform.forward);
+		m_Clouds.SetVector("SunColor", m_Sun.color);
 
 		m_Clouds.SetInt("NumSteps", NumSteps);
 		m_Clouds.SetFloat("LargeStepSizeMultiplier", LargeStepSizeMultiplier);
+		m_Clouds.SetBool("UseJitter", UseJitter);
 
 		m_Clouds.SetFloat("GlobalDensity", GlobalDensity);
 		m_Clouds.SetFloat("GlobalScale", GlobalScale);
@@ -143,15 +174,13 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetTexture(0, "Output", m_IntermediateTexture);
 
 		// Debug parameters
-		m_Clouds.SetBool("Debug", EnableDebug);
-		m_Clouds.SetBool("UseJitter", UseJitter);
+		m_Clouds.SetBool("Debug", ShowTextureSlices);
 		m_Clouds.SetFloat("TextureSlice", TextureSlice);
 		m_Clouds.SetVector("ChannelMask", ChannelMask);
 
 		GraphicsHelper.Dispatch(m_Clouds, source.width, source.height);
 
 		Graphics.Blit(m_IntermediateTexture, destination);
-		// Graphics.Blit(source, destination);
 
 		// if (Application.isPlaying)
 		// 	ScreenCapture.CaptureScreenshot("Screenshots/_CloudHeightGradient.png");

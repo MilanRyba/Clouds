@@ -463,31 +463,30 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 585b08ce21e5c594dae89cc1016dae81, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Seed: 0
-  ShapeNoiseFrequency: 4
-  ShapeNoiseResolution: 128
-  ShapeNoiseScale: 0.13
-  DetailNoiseFrequency: 3
-  DetailNoiseResolution: 32
-  DetailNoiseScale: 2.83
-  NumSteps: 128
-  LargeStepSizeMultiplier: 3
-  GlobalDensity: 0.021
-  GlobalScale: 0.000481
   Coverage: 0.5
   CloudType: 0.5
   WindAngle: 0
   CloudSpeed: 0.01
   CloudTopOffset: 82
+  GlobalDensity: 0.021
+  GlobalScale: 0.000481
+  ShapeNoiseScale: 0.13
+  DetailNoiseScale: 2.83
   Eccentricity: 0.15
   Intensity: 0.95
   Spread: 0.885
+  NumSteps: 128
+  LargeStepSizeMultiplier: 3
+  UseJitter: 1
   PlanetRadius: 60000
   AtmosphereHeightRange: {x: 1500, y: 3000}
-  EnableDebug: 0
-  UseJitter: 1
+  ShapeNoiseFrequency: 4
+  ShapeNoiseResolution: 128
+  DetailNoiseFrequency: 3
+  DetailNoiseResolution: 32
+  ShowTextureSlices: 0
   TextureSlice: 0
-  ActiveChannel: 1
+  ActiveChannel: 0
   m_Clouds: {fileID: 7200000, guid: 964f4bd3416234b448fc9d7f0860d34d, type: 3}
   m_CloudShapeNoise: {fileID: 7200000, guid: d765d136f9515c04e8a2f1eee6e39635, type: 3}
   m_SlicerShader: {fileID: 7200000, guid: 0151eee97acf32a408b0cdf48d283621, type: 3}

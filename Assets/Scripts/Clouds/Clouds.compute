@@ -17,6 +17,7 @@ float3 SunColor;
 
 int NumSteps;
 float LargeStepSizeMultiplier;
+uint UseJitter;
 
 float GlobalDensity;
 float GlobalScale;
@@ -50,7 +51,6 @@ SamplerState sPointClamp;
 RWTexture2D<float4> Output;
 
 uint Debug;
-uint UseJitter;
 float TextureSlice;
 float4 ChannelMask;
 
