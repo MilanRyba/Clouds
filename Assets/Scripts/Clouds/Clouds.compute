@@ -31,10 +31,9 @@ float CloudTopOffset = 100.0;
 int Time;
 
 // Phase function parameters
-int PhaseMethod;
-float ForwardScattering;
-float BackwardScattering;
-float ScatteringWeight;
+float Eccentricity;
+float Intensity;
+float Spread;
 
 Texture3D ShapeTexture;
 Texture3D DetailTexture;
@@ -55,54 +54,20 @@ uint UseJitter;
 float TextureSlice;
 float4 ChannelMask;
 
-static const float PI = 3.1415;
 #define PLANET_CENTER float3(0, -PlanetRadius, 0)
 #define CLOUDS_BOTTOM_LAYER (PlanetRadius + AtmosphereHeightRange.x)
 #define CLOUDS_TOP_LAYER (PlanetRadius + AtmosphereHeightRange.y)
 
-float HenyeyGreenstein(float3 inLightVector, float3 inViewVector, float inG)
+float HenyeyGreenstein(float LoV, float eccentricity)
 {
-    float cosAngle = dot(inLightVector, inViewVector);
-    return ((1.0 - inG * inG) / pow((1.0 + inG * inG - 2.0 * inG * cosAngle), 3.0 / 2.0)) / 4.0 * PI;
+    float ecc2 = eccentricity * eccentricity;
+    return ((1.0 - ecc2) / pow((1.0 + ecc2 - 2.0 * eccentricity * LoV), 1.5)) / 4.0 * PI;
 }
 
-float Phase(float3 inLightVector, float3 inViewVector)
+float Phase(float LoV, float eccentricity, float silverIntensity, float silverSpread)
 {
-    if (PhaseMethod == 0)
-    {
-        return HenyeyGreenstein(inLightVector, inViewVector, ForwardScattering);
-    }
-    else if (PhaseMethod == 1)
-    {
-        return lerp(HenyeyGreenstein(inLightVector, inViewVector, ForwardScattering), 
-                    HenyeyGreenstein(inLightVector, inViewVector, BackwardScattering), 0.5);
-    }
-    
-    return 0.0;
+    return max(HenyeyGreenstein(LoV, eccentricity), silverIntensity * HenyeyGreenstein(LoV, 0.99 - silverSpread));
 }
-
-float2 RaySphereIntersection(float3 center, float radius, float3 origin, float3 direction)
-{
-    float3 of = origin - center;
-    const float a = 1.0;
-    float b = 2.0 * dot(of, direction);
-    float c = dot(of, of) - radius * radius;
-    float discriminant = b * b - 4.0 * a * c;
-
-    if (discriminant > 0)
-    {
-        discriminant = sqrt(discriminant);
-        float dstToSphereNear = max(0.0, (-b - discriminant) / (2.0 * a));
-        float dstToSphereFar = (-b + discriminant) / (2.0 * a);
-
-        if (dstToSphereFar >= 0.0)
-        {
-            return float2(dstToSphereNear, dstToSphereFar - dstToSphereNear);
-        }
-    }
-    return float2(0.0, 0.0);
-}
-
 
 // Fractional value for sample position in the cloud layer
 float GetHeightFractionForPoint(float height, float2 cloudsMinMax)
@@ -114,7 +79,7 @@ float GetHeightFractionForPoint(float height, float2 cloudsMinMax)
 
 float SampleCloudDensity(float3 p, bool cheapSample)
 {
-    float heightAboveSeaLevel = length(p - float3(0, -PlanetRadius, 0));
+    float heightAboveSeaLevel = length(p - PLANET_CENTER);
     float heightFraction = GetHeightFractionForPoint(heightAboveSeaLevel - PlanetRadius, AtmosphereHeightRange);
     
     // Skew in wind direction
@@ -127,7 +92,7 @@ float SampleCloudDensity(float3 p, bool cheapSample)
     
     // Read the low-frequency Perlin-Worley noise and Worley noises.
     float4 lowFrequencyNoises = ShapeTexture.SampleLevel(sLinearRepeat, p * ShapeNoiseScale, 0);
-                
+    
     // Build an FBM out of the low frequency Worley noises
     // that can be used to add detail to the low-frequency Perlin-Worley noise.
     float lowFreqFBM = dot(lowFrequencyNoises.gba, float3(0.625, 0.25, 0.125));
@@ -136,16 +101,15 @@ float SampleCloudDensity(float3 p, bool cheapSample)
     float baseCloud = Remap(lowFrequencyNoises.r, -(1.0 - lowFreqFBM), 1.0, 0.0, 1.0);
     
     // Apply the density height gradient to the base cloud shape
-    float densityHeightGradient = HeightGradient.SampleLevel(sLinearClamp, float2(CloudType, heightFraction), 0).x;
-    baseCloud *= densityHeightGradient;
-    // return saturate(baseCloud * GlobalDensity);
+    float heightGradient= HeightGradient.SampleLevel(sLinearClamp, float2(CloudType, heightFraction), 0).x;
+    baseCloud *= heightGradient;
     
     // Use remap to apply the cloud coverage attribute
     baseCloud = Remap(baseCloud, 1.0 - Coverage, 1.0f, 0.0f, 1.0f);
     
     // Multiply the result by the cloud coverage attribute 
     // so that smaller clouds are lighter and more aesthetically pleasing
-    baseCloud *= Coverage;    
+    baseCloud *= Coverage;
     
     if (cheapSample == false)
     {
@@ -156,7 +120,7 @@ float SampleCloudDensity(float3 p, bool cheapSample)
         float highFreqFBM = dot(highFrequencyNoises, float3(0.625, 0.25, 0.125));
     
         // Transition from wispy shapes to billowy shapes over height
-        float highFreqNoiseModifier = lerp(highFreqFBM, 1.0 - highFreqFBM, saturate(heightFraction * 10.0));
+        float highFreqNoiseModifier = lerp(highFreqFBM, 1.0 - highFreqFBM, saturate(heightFraction * 5.0));
     
         // Erode the base cloud shape with the distorted high-frequency Worley noises
         baseCloud = Remap(baseCloud, highFreqNoiseModifier * 0.4, 1.0, 0.0, 1.0);
@@ -210,27 +174,11 @@ float4 RenderClouds(float3 startPos, float3 endPos, uint2 uv)
     }
     
     SunDirection = normalize(-SunDirection);
-    float phase = Phase(SunDirection, normalize(direction));
+    float LoV = dot(SunDirection, direction);
+    float phase = Phase(LoV, Eccentricity, Intensity, Spread);
     
     float3 totalScattering = 0.0f;
     float transmittance = 1.0f;
-    
-    // for (int i = 0; i < numSteps; i++)
-    // {
-    //     p += direction * baseStepSize;
-    //     float density = SampleCloudDensity(p, false);
-    //     
-    //     if (density > 0.0)
-    //     {
-    //         float3 sunScattering = LightMarch(p, SunDirection) * SunColor;
-    //         totalScattering += density * transmittance * baseStepSize * (sunScattering * phase + float3(0.2, 0.2, 0.25));
-    //         transmittance *= exp(-density * baseStepSize);
-    //         
-    //         if (transmittance < 0.01)
-    //             break;
-    //     }
-    // }
-    // return float4(totalScattering, transmittance);
     
     float cloudTest = 0.0;
     int zeroDensitySampleCount = 0;
@@ -305,6 +253,14 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         {
             float3 pos = float3(debugUV.x, TextureSlice, debugUV.y);
             Output[id.xy] = MaskChannels(ShapeTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
+            return;
+        }
+        
+        debugUV = InverseLerp((float2) id.xy, float2(320.0f, 20.0f), float2(600.0f, 300.0f));
+        if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+        {
+            float3 pos = float3(debugUV.x, TextureSlice, debugUV.y);
+            Output[id.xy] = MaskChannels(DetailTexture.SampleLevel(sLinearRepeat, pos, 0), ChannelMask);
             return;
         }
     }

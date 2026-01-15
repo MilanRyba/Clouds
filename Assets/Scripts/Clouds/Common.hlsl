@@ -1,5 +1,8 @@
 #pragma once
 
+// Constants
+static const float PI = 3.1415;
+
 float InverseLerp(float value, float minValue, float maxValue)
 {
     return (value - minValue) / (maxValue - minValue);
@@ -43,4 +46,27 @@ float4 MaskChannels(float4 inValue, float4 inChannelMask)
         return float4(inValue.a, inValue.a, inValue.a, 1.0);
     
     return inValue;
+}
+
+// Collisions
+float2 RaySphereIntersection(float3 center, float radius, float3 origin, float3 direction)
+{
+    float3 of = origin - center;
+    const float a = 1.0;
+    float b = 2.0 * dot(of, direction);
+    float c = dot(of, of) - radius * radius;
+    float discriminant = b * b - 4.0 * a * c;
+
+    if (discriminant > 0)
+    {
+        discriminant = sqrt(discriminant);
+        float dstToSphereNear = max(0.0, (-b - discriminant) / (2.0 * a));
+        float dstToSphereFar = (-b + discriminant) / (2.0 * a);
+
+        if (dstToSphereFar >= 0.0)
+        {
+            return float2(dstToSphereNear, dstToSphereFar - dstToSphereNear);
+        }
+    }
+    return float2(0.0, 0.0);
 }

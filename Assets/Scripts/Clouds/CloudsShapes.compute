@@ -1,0 +1,86 @@
+#pragma kernel CloudShapeNoiseCS
+#pragma kernel CloudDetailNoiseCS
+#pragma kernel CloudHeightGradientCS
+
+#include "Common.hlsl"
+#include "Noise.hlsl"
+
+uint WorleyNoiseFrequency;
+float ResolutionInv;
+
+RWTexture3D<float4> NoiseOutput;
+RWTexture2D<float> HeightGradient;
+
+[numthreads(8, 8, 8)]
+void CloudShapeNoiseCS(uint3 id : SV_DispatchThreadID)
+{
+    float3 uvw = TexelToUV(id, ResolutionInv);
+    
+    // Perlin FBM noise
+    int octaveCount = 3;
+    float frequency = 8.0;
+    float perlinNoise = PerlinNoise(uvw, frequency, octaveCount);
+
+    float PerlinWorleyNoise = 0.0;
+	{
+        float worleyNoise0 = WorleyNoise(uvw, WorleyNoiseFrequency * 2.0);
+        float worleyNoise1 = WorleyNoise(uvw, WorleyNoiseFrequency * 8.0);
+        float worleyNoise2 = WorleyNoise(uvw, WorleyNoiseFrequency * 14.0);
+
+		// PerlinWorley noise as described p.101 of GPU Pro 7
+        float worleyFBM = worleyNoise0 * 0.625 + worleyNoise1 * 0.25 + worleyNoise2 * 0.125;
+
+        PerlinWorleyNoise = Remap(perlinNoise, 0.0, 1.0, worleyFBM, 1.0);
+    }
+    
+    float worleyNoise1 = WorleyNoise(uvw, WorleyNoiseFrequency * 2.0);
+    float worleyNoise2 = WorleyNoise(uvw, WorleyNoiseFrequency * 4.0);
+    float worleyNoise3 = WorleyNoise(uvw, WorleyNoiseFrequency * 8.0);
+    float worleyNoise4 = WorleyNoise(uvw, WorleyNoiseFrequency * 16.0);
+
+	// Three frequency of Worley FBM noise
+    float worleyFBM0 = worleyNoise1 * 0.625f + worleyNoise2 * 0.25f + worleyNoise3 * 0.125f;
+    float worleyFBM1 = worleyNoise2 * 0.625f + worleyNoise3 * 0.25f + worleyNoise4 * 0.125f;
+    float worleyFBM2 = worleyNoise3 * 0.75f + worleyNoise4 * 0.25f;
+
+    NoiseOutput[id] = float4(PerlinWorleyNoise * PerlinWorleyNoise, worleyFBM0, worleyFBM1, worleyFBM2);
+}
+
+[numthreads(8, 8, 8)]
+void CloudDetailNoiseCS(uint3 id : SV_DispatchThreadID)
+{
+    float3 uvw = TexelToUV(id, ResolutionInv);
+    
+    float worleyNoise0 = WorleyNoise(uvw, WorleyNoiseFrequency * 1.0);
+    float worleyNoise1 = WorleyNoise(uvw, WorleyNoiseFrequency * 2.0);
+    float worleyNoise2 = WorleyNoise(uvw, WorleyNoiseFrequency * 4.0);
+    float worleyNoise3 = WorleyNoise(uvw, WorleyNoiseFrequency * 8.0);
+    float worleyFBM0 = worleyNoise0 * 0.625f + worleyNoise1 * 0.25f + worleyNoise2 * 0.125f;
+    float worleyFBM1 = worleyNoise1 * 0.625f + worleyNoise2 * 0.25f + worleyNoise3 * 0.125f;
+    float worleyFBM2 = worleyNoise2 * 0.75f + worleyNoise3 * 0.25f;
+
+    NoiseOutput[id] = float4(worleyFBM0, worleyFBM1, worleyFBM2, 1.0);
+}
+
+[numthreads(8, 8, 8)]
+void CloudHeightGradientCS(uint3 id : SV_DispatchThreadID)
+{
+    float3 uvw = TexelToUV(id, ResolutionInv);
+    float cloudType = uvw.x;
+    float height = uvw.y;
+
+    const float4 stratusGradient = float4(0.0f, 0.05f, 0.18f, 0.22f);
+    const float4 cumulusGradient = float4(0.0f, 0.2f, 0.42f, 0.6f);
+    const float4 cumulonimbusGradient = float4(0.0f, 0.08f, 0.8f, 0.98f);
+
+    float a = 1.0f - saturate(cloudType * 2.0f);
+    float b = 1.0f - abs(cloudType - 0.5f) * 2.0f;
+    float c = saturate(cloudType - 0.5f) * 2.0f;
+    float4 gradient = stratusGradient * a + cumulusGradient * b + cumulonimbusGradient * c;
+
+    float v1 = saturate(InverseLerp(height, gradient.x, gradient.y));
+    float v2 = saturate(InverseLerp(height, gradient.w, gradient.z));
+    float v = v1 * v2;
+
+    HeightGradient[id.xy] = v;
+}

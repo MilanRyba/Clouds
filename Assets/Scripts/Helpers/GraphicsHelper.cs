@@ -23,6 +23,12 @@ namespace Helpers
 			inShader.Dispatch(inKernel, numGroupsX, numGroupsY, numGroupsZ);
 		}
 
+		// Dispatch compute shader with the same number of invocations in all axis
+		public static void DispatchXYZ(ComputeShader inShader, int inNumInvocationsXYZ, int inKernel = 0)
+		{
+			Dispatch(inShader, inNumInvocationsXYZ, inNumInvocationsXYZ, inNumInvocationsXYZ, inKernel);
+		}
+
 		#endregion
 
 		#region #Buffers

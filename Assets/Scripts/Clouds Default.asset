@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8204f9a8f3ffc0c4b8b69e5256e46089, type: 3}
+  m_Name: Clouds Default
+  m_EditorClassIdentifier: 
+  GlobalDensity: 0.299
+  GlobalCoverage: 0.306
+  CloudType: 0.21
+  WindDirection: 0
+  CloudSpeed: 0.01
+  CloudTopOffset: 78
+  BaseScale: 37.5
+  DetailScale: 19.9
+  Absorption: 0.00223
+  Eccentricity: 0.31
+  Intensity: 0.45
+  Spread: 0.204

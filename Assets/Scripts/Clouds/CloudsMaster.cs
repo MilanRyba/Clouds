@@ -1,6 +1,5 @@
 using Helpers;
 using System.IO;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 
@@ -9,24 +8,20 @@ public class CloudsMaster : MonoBehaviour
 {
 	[Header("Noise")]
 
-	// Temporary members for testing different methods of generation noise
-	[Range(0, 1)] public int PerlinMethod = 0;
-	[Range(0, 1)] public int WorleyMethod = 0;
-
-	[Range(0, 100)]     public int Seed = 0; // Seed value for Worley noise
+	[Min(0)]
+	public int Seed = 0;
 
 	[Range(1, 10)]      public int ShapeNoiseFrequency = 3;
 	[Range(32, 256)]    public int ShapeNoiseResolution = 128;
 	[Range(0.1f, 5.0f)] public float ShapeNoiseScale = 0.3f;
 
-	[Range(1, 10)]      public int DetailNoiseFrequency = 2;
+	[Range(1, 10)]      public int DetailNoiseFrequency = 3;
 	[Range(1, 64)]      public int DetailNoiseResolution = 32;
 	[Range(0.1f, 5.0f)] public float DetailNoiseScale = 0.3f;
 
 	[Header("Clouds")]
-	// public Transform Container;
 
-	[Range(32, 256), Tooltip("The maximum number of steps the raymarcher will take")]
+	[Range(8, 256), Tooltip("The maximum number of steps the raymarcher will take")]
 	public int NumSteps = 128;
 
 	[Range(2.0f, 4.0f)]
@@ -43,10 +38,14 @@ public class CloudsMaster : MonoBehaviour
 	[Range(0.0f, 250.0f), Tooltip("Pushes the tops of the clouds along the wind direction by this many units")]
 	public float CloudTopOffset = 100.0f;
 
-	public bool DualLobPhase = true;
-	[Range(0.0f, 1.0f)] public float ForwardScattering = 0.8f;
-	[Range(-1.0f, 0.0f)] public float BackwardScattering = -0.2f;
-	[Range(0.0f, 1.0f)] public float ScatteringWeight = 0.5f;
+	[Range(-0.99f, 0.99f), Tooltip("Directional scattering bias. Values >1 make the light scatter forward and values <1 backward")]
+	public float Eccentricity = 0.65f;
+
+	[Range(0.0f, 5.0f)]
+	public float Intensity = 0.95f;
+
+	[Range(0.0f, 1.0f)]
+	public float Spread = 1.0f;
 
 	[Range(1000.0f, 1000000.0f)] public float PlanetRadius = 60000.0f; // Earth's radius in meters
 	public Vector2 AtmosphereHeightRange = new Vector2(200.0f, 900.0f);
@@ -126,10 +125,10 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetFloat("DetailNoiseScale", DetailNoiseScale);
 		m_Clouds.SetFloat("Coverage", Coverage);
 		m_Clouds.SetFloat("CloudType", CloudType);
-		m_Clouds.SetBool("PhaseMethod", DualLobPhase);
-		m_Clouds.SetFloat("ForwardScattering", ForwardScattering);
-		m_Clouds.SetFloat("BackwardScattering", BackwardScattering);
-		m_Clouds.SetFloat("ScatteringWeight", ScatteringWeight);
+
+		m_Clouds.SetFloat("Eccentricity", Eccentricity);
+		m_Clouds.SetFloat("Intensity", Intensity);
+		m_Clouds.SetFloat("Spread", Spread);
 
 		m_Clouds.SetVector("WindDirection", new Vector3(Mathf.Cos(WindAngle * Mathf.Deg2Rad), 0, -Mathf.Sin(WindAngle * Mathf.Deg2Rad)));
 		m_Clouds.SetFloat("CloudSpeed", CloudSpeed);
@@ -154,8 +153,8 @@ public class CloudsMaster : MonoBehaviour
 		Graphics.Blit(m_IntermediateTexture, destination);
 		// Graphics.Blit(source, destination);
 
-		if (Application.isPlaying)
-			ScreenCapture.CaptureScreenshot("Screenshots/_CloudHeightGradient.png");
+		// if (Application.isPlaying)
+		// 	ScreenCapture.CaptureScreenshot("Screenshots/_CloudHeightGradient.png");
 	}
 
 	private void SaveNoiseAsPNGs(string inFileName, RenderTexture inTexture)
@@ -215,31 +214,22 @@ public class CloudsMaster : MonoBehaviour
 		TextureHelper.Create3D(ref m_DetailNoise, DetailNoiseResolution, GraphicsFormat.R8G8B8A8_UNorm, "Detail Noise");
 		TextureHelper.Create2D(ref m_HeightDensityGradient, 128, 128, GraphicsFormat.R8_UNorm, "Height Gradient");
 
-		m_CloudShapeNoise.SetInt("WorleyMethod", WorleyMethod);
-		m_CloudShapeNoise.SetInt("PerlinMethod", PerlinMethod);
-		m_CloudShapeNoise.SetInt("Seed", Seed);
-		m_CloudShapeNoise.SetInt("Frequency", ShapeNoiseFrequency);
+		m_CloudShapeNoise.SetInt("WorleyNoiseFrequency", ShapeNoiseFrequency);
 		m_CloudShapeNoise.SetFloat("ResolutionInv", 1.0f / ShapeNoiseResolution);
 		m_CloudShapeNoise.SetTexture(0, "NoiseOutput", m_ShapeNoise);
 		m_CloudShapeNoise.SetTexture(0, "HeightGradient", m_HeightDensityGradient);
-		GraphicsHelper.Dispatch(m_CloudShapeNoise, ShapeNoiseResolution, ShapeNoiseResolution, ShapeNoiseResolution, 0);
+		GraphicsHelper.DispatchXYZ(m_CloudShapeNoise, ShapeNoiseResolution, 0);
 
-		m_CloudShapeNoise.SetInt("WorleyMethod", WorleyMethod);
-		m_CloudShapeNoise.SetInt("PerlinMethod", PerlinMethod);
-		m_CloudShapeNoise.SetInt("Seed", Seed);
-		m_CloudShapeNoise.SetInt("Frequency", DetailNoiseFrequency);
+		m_CloudShapeNoise.SetInt("WorleyNoiseFrequency", DetailNoiseFrequency);
 		m_CloudShapeNoise.SetFloat("ResolutionInv", 1.0f / DetailNoiseResolution);
 		m_CloudShapeNoise.SetTexture(1, "NoiseOutput", m_DetailNoise);
 		m_CloudShapeNoise.SetTexture(1, "HeightGradient", m_HeightDensityGradient);
-		GraphicsHelper.Dispatch(m_CloudShapeNoise, DetailNoiseResolution, DetailNoiseResolution, DetailNoiseResolution, 1);
+		GraphicsHelper.DispatchXYZ(m_CloudShapeNoise, DetailNoiseResolution, 1);
 
-		m_CloudShapeNoise.SetInt("WorleyMethod", WorleyMethod);
-		m_CloudShapeNoise.SetInt("PerlinMethod", PerlinMethod);
-		m_CloudShapeNoise.SetInt("Seed", Seed);
-		m_CloudShapeNoise.SetInt("Frequency", DetailNoiseFrequency);
+		m_CloudShapeNoise.SetInt("WorleyNoiseFrequency", DetailNoiseFrequency);
 		m_CloudShapeNoise.SetFloat("ResolutionInv", 1.0f / m_HeightDensityGradient.width);
 		m_CloudShapeNoise.SetTexture(2, "NoiseOutput", m_DetailNoise);
 		m_CloudShapeNoise.SetTexture(2, "HeightGradient", m_HeightDensityGradient);
-		GraphicsHelper.Dispatch(m_CloudShapeNoise, 128, 128, 128, 2);
+		GraphicsHelper.DispatchXYZ(m_CloudShapeNoise, 128, 2);
 	}
 }
