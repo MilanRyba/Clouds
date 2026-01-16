@@ -224,6 +224,7 @@ float hash(int n)
     return frac(sin(float(n) + 1.951) * 43758.5453123);
 }
 
+// TODO: Find better noise for Worley
 float noise(float3 x)
 {
     float3 p = floor(x);

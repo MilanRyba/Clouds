@@ -70,17 +70,15 @@ float Phase(float LoV, float eccentricity, float silverIntensity, float silverSp
 }
 
 // Fractional value for sample position in the cloud layer
-float GetHeightFractionForPoint(float height, float2 cloudsMinMax)
+float GetHeightFractionForPoint(float3 p)
 {
-    // Get global fractional position in cloud zone
-    float height_fraction = (height - cloudsMinMax.x) / (cloudsMinMax.y - cloudsMinMax.x);
-    return saturate(height_fraction);
+    float height = length(p - PLANET_CENTER);
+    return saturate((height - CLOUDS_BOTTOM_LAYER) / (CLOUDS_TOP_LAYER - CLOUDS_BOTTOM_LAYER));
 }
 
 float SampleCloudDensity(float3 p, bool cheapSample)
-{
-    float heightAboveSeaLevel = length(p - PLANET_CENTER);
-    float heightFraction = GetHeightFractionForPoint(heightAboveSeaLevel - PlanetRadius, AtmosphereHeightRange);
+{    
+    float heightFraction = GetHeightFractionForPoint(p);
     
     // Skew in wind direction
     p += heightFraction * WindDirection * CloudTopOffset;
@@ -112,7 +110,7 @@ float SampleCloudDensity(float3 p, bool cheapSample)
     baseCloud *= Coverage;
     
     if (cheapSample == false)
-    {
+    {   
         // Sample high-frequency noises
         float3 highFrequencyNoises = DetailTexture.SampleLevel(sLinearRepeat, p * DetailNoiseScale, 0).rgb;
     
@@ -245,7 +243,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 {
     if (any(id.xy >= ViewportDimensions))
         return;
-
+    
     if (Debug)
     {
         float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(300.0f, 300.0f));

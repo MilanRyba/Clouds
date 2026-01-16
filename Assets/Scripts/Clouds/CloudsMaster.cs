@@ -1,5 +1,4 @@
 using Helpers;
-using System.IO;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 
@@ -124,9 +123,6 @@ public class CloudsMaster : MonoBehaviour
 		m_Sun = FindObjectOfType<Light>();
 
 		OnValidate();
-
-		// SaveNoiseAsPNGs("_CloudShapeA", m_ShapeNoise);
-		// SaveNoiseAsPNGs("_CloudDetailB", m_DetailNoise);
 	}
 
 	private void OnRenderImage(RenderTexture source, RenderTexture destination)
@@ -182,59 +178,9 @@ public class CloudsMaster : MonoBehaviour
 
 		Graphics.Blit(m_IntermediateTexture, destination);
 
-		// if (Application.isPlaying)
-		// 	ScreenCapture.CaptureScreenshot("Screenshots/_CloudHeightGradient.png");
+		if (Application.isPlaying)
+			ScreenCapture.CaptureScreenshot("Screenshots/Worley_NoTiling.png");
 	}
-
-	private void SaveNoiseAsPNGs(string inFileName, RenderTexture inTexture)
-	{
-#if UNITY_EDITOR
-		int resolution = inTexture.width;
-		m_Slices = new Texture2D[resolution];
-
-		m_SlicerShader.SetTexture(0, "_Input", inTexture);
-
-		for (int layer = 0; layer < resolution; layer++)
-		{
-			var slice = new RenderTexture(resolution, resolution, 0);
-			slice.dimension = UnityEngine.Rendering.TextureDimension.Tex2D;
-			slice.enableRandomWrite = true;
-			slice.Create();
-
-			m_SlicerShader.SetTexture(0, "_Output", slice);
-			m_SlicerShader.SetInt("_Layer", layer);
-
-			GraphicsHelper.Dispatch(m_SlicerShader, resolution, resolution);
-			m_Slices[layer] = GetRTPixels(slice);
-		}
-
-		// Save To Disk as PNG
-		byte[] bytes = m_Slices[0].EncodeToPNG();
-		var dirPath = Application.dataPath + "/../Screenshots/";
-		File.WriteAllBytes(dirPath + inFileName + ".png", bytes);
-#endif
-	}
-
-	// Taken from https://docs.unity3d.com/6000.2/Documentation/ScriptReference/RenderTexture-active.html
-	// TODO: Move into TextureHelper
-	private Texture2D GetRTPixels(RenderTexture rt)
-	{
-		// Remember currently active render texture
-		RenderTexture currentActiveRT = RenderTexture.active;
-
-		// Set the supplied RenderTexture as the active one
-		RenderTexture.active = rt;
-
-		// Create a new Texture2D and read the RenderTexture image into it
-		Texture2D tex = new Texture2D(rt.width, rt.height);
-		tex.ReadPixels(new Rect(0, 0, tex.width, tex.height), 0, 0);
-		tex.Apply();
-
-		// Restore previously active render texture
-		RenderTexture.active = currentActiveRT;
-		return tex;
-	}
-
 
 	private void OnValidate()
 	{
