@@ -51,8 +51,11 @@ SamplerState sPointClamp;
 RWTexture2D<float4> Output;
 
 uint Debug;
+uint EarlyTerminatedPixels;
 float TextureSlice;
 float4 ChannelMask;
+
+uint EarlyExit = false;
 
 #define PLANET_CENTER float3(0, -PlanetRadius, 0)
 #define CLOUDS_BOTTOM_LAYER (PlanetRadius + AtmosphereHeightRange.x)
@@ -207,6 +210,9 @@ float4 RenderClouds(float3 startPos, float3 endPos, uint2 uv)
                     
                     if (transmittance < 0.01)
                     {
+                        if (EarlyTerminatedPixels)
+                            EarlyExit = true;
+                        
                         break;
                     }
                 }
@@ -307,4 +313,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float4 scatteringTransmittance = RenderClouds(startPos, endPos, id.xy);
     float3 color = sceneColor.rgb * scatteringTransmittance.w + scatteringTransmittance.xyz;
     Output[id.xy] = float4(color, 1.0);
+    
+    if (EarlyExit)
+        Output[id.xy] = float4(1, 0.1, 1, 1.0);
 }

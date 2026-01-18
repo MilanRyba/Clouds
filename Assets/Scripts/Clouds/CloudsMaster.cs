@@ -171,6 +171,7 @@ public class CloudsMaster : MonoBehaviour
 
 		// Debug parameters
 		m_Clouds.SetBool("Debug", ShowTextureSlices);
+		m_Clouds.SetBool("EarlyTerminatedPixels", EarlyTerminatedPixels);
 		m_Clouds.SetFloat("TextureSlice", TextureSlice);
 		m_Clouds.SetVector("ChannelMask", ChannelMask);
 

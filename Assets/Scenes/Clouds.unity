@@ -351,13 +351,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 653479335}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.55104524, y: -0.8271812, z: 0.10394641, w: 0.03627092}
+  m_LocalRotation: {x: 0.90736115, y: -0.30593577, z: 0.26067856, w: 0.123067796}
   m_LocalPosition: {x: 0, y: 3, z: 3.321}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 12.236, y: -183.2, z: -67.684}
+  m_LocalEulerAnglesHint: {x: 22.509, y: -205.503, z: -147.892}
 --- !u!1 &1407044922
 GameObject:
   m_ObjectHideFlags: 0
@@ -444,13 +444,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1407044922}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.116150364, y: -0.39707947, z: -0.05027262, w: 0.9090158}
-  m_LocalPosition: {x: 406.78427, y: 51.1, z: -363.72864}
+  m_LocalRotation: {x: -0.15623522, y: -0.4208345, z: -0.07319901, w: 0.8905789}
+  m_LocalPosition: {x: 374.023, y: 50.521362, z: -323.0273}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: -14.542, y: 672.8, z: 0.05}
+  m_LocalEulerAnglesHint: {x: -27, y: 659.4, z: 0.05}
 --- !u!114 &1407044926
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -463,8 +463,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 585b08ce21e5c594dae89cc1016dae81, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Coverage: 0.5
-  CloudType: 1
+  Coverage: 0.51
+  CloudType: 0.4
   WindAngle: 0
   CloudSpeed: 0.01
   CloudTopOffset: 82
@@ -472,12 +472,12 @@ MonoBehaviour:
   GlobalScale: 0.000481
   ShapeNoiseScale: 0.13
   DetailNoiseScale: 2.83
-  Eccentricity: 0.15
+  Eccentricity: 0.2
   Intensity: 0.95
-  Spread: 0.885
-  NumSteps: 128
+  Spread: 0.846
+  NumSteps: 256
   LargeStepSizeMultiplier: 3
-  UseJitter: 1
+  UseJitter: 0
   PlanetRadius: 60000
   AtmosphereHeightRange: {x: 1500, y: 3000}
   ShapeNoiseFrequency: 4

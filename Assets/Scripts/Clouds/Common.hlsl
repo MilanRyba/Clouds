@@ -14,9 +14,9 @@ float2 InverseLerp(float2 value, float2 minValue, float2 maxValue)
 }
 
 // Maps a value from one range to another
-float Remap(float original_value, float original_min, float original_max, float new_min, float new_max)
+float Remap(float originalValue, float originalMin, float originalMax, float newMin, float newMax)
 {
-    return new_min + (((original_value - original_min) / (original_max - original_min)) * (new_max - new_min));
+    return newMin + (((originalValue - originalMin) / (originalMax - originalMin)) * (newMax - newMin));
 }
 
 float2 TexelToUV(uint2 texel, float2 texelSize)
