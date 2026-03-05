@@ -1,0 +1,56 @@
+#pragma kernel CSMain
+
+#include "Clouds/Common.hlsl"
+
+float2 ViewportDimensions;
+float2 ViewportDimensionsInv;
+float3 CameraPosition;
+float4x4 CameraToWorld;
+float4x4 CameraInverseProjection;
+
+float3 BackgroundColor;
+bool UseBackgroundColor;
+
+float SigmaA;
+float3 Scatter;
+
+float3 SphereCenter;
+float SphereRadius;
+
+Texture2D SceneTexture;
+RWTexture2D<float4> Result;
+
+SamplerState sLinearRepeat;
+SamplerState sLinearClamp;
+SamplerState sPointRepeat;
+SamplerState sPointClamp;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= ViewportDimensions))
+        return;
+    
+    float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);
+    
+    float3 backgroundColor;
+    if (UseBackgroundColor)
+        backgroundColor = BackgroundColor;
+    else
+        backgroundColor = SceneTexture.SampleLevel(sPointClamp, uv, 0).rgb;
+    
+    Ray ray = GetCameraRay(uv, CameraPosition, CameraInverseProjection, CameraToWorld);
+    
+    float2 sphereHit = RaySphereIntersection(SphereCenter, SphereRadius, ray);
+    if (sphereHit[0] == 0.0 && sphereHit[1] == 0.0)
+    {
+        Result[id.xy] = float4(backgroundColor, 1.0);
+        return;
+    }
+    
+    float distance = sphereHit[1];
+    float transmittance = exp(-distance * SigmaA);
+    float3 finalColor = backgroundColor * transmittance + Scatter * (1.0 - transmittance);    
+    
+    Result[id.xy] = float4(finalColor, 1.0);
+}

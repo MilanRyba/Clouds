@@ -351,13 +351,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 653479335}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.90736115, y: -0.30593577, z: 0.26067856, w: 0.123067796}
-  m_LocalPosition: {x: 0, y: 3, z: 3.321}
+  m_LocalRotation: {x: 0.34729937, y: -0, z: -0, w: 0.93775433}
+  m_LocalPosition: {x: 0, y: 147.9, z: 3.321}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 22.509, y: -205.503, z: -147.892}
+  m_LocalEulerAnglesHint: {x: 40.644, y: 0, z: 0}
 --- !u!1 &1407044922
 GameObject:
   m_ObjectHideFlags: 0
@@ -463,23 +463,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 585b08ce21e5c594dae89cc1016dae81, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Coverage: 0.51
-  CloudType: 0.4
+  WeatherMap: {fileID: 2800000, guid: 1d04b23892a22a94a8ce60001528843c, type: 3}
+  Coverage: 0.5
+  CloudType: 0.601
   WindAngle: 0
   CloudSpeed: 0.01
   CloudTopOffset: 82
   GlobalDensity: 0.021
   GlobalScale: 0.000481
-  ShapeNoiseScale: 0.13
-  DetailNoiseScale: 2.83
-  Eccentricity: 0.2
-  Intensity: 0.95
-  Spread: 0.846
+  ShapeNoiseScale: 0.56
+  DetailNoiseScale: 3.1
+  Eccentricity: 0.25
+  Intensity: 1.23
+  Spread: 0.486
   NumSteps: 256
   LargeStepSizeMultiplier: 3
-  UseJitter: 0
-  PlanetRadius: 60000
-  AtmosphereHeightRange: {x: 1500, y: 3000}
+  UseJitter: 1
+  PlanetRadius: 600000
+  AtmosphereHeightRange: {x: 512, y: 2500}
   ShapeNoiseFrequency: 4
   ShapeNoiseResolution: 128
   DetailNoiseFrequency: 3

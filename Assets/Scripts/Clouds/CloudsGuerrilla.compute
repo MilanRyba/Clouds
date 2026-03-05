@@ -1,0 +1,394 @@
+﻿// // fractional value for sample position in the cloud layer
+// float GetHeightFractionForPoint(float3 inPosition, float2 inCloudMinMax)
+// {
+//     // get global fractional position in cloud zone
+//     float height_fraction = (inPosition.z - inCloudMinMax.x) / (inCloudMinMax.y - inCloudMinMax.x);
+//  
+//     return saturate(height_fraction);
+// }
+// 
+// // Utility function that maps a value from one range to another.
+// float Remap(float original_value, float original_min, float original_max, float new_min, float new_max)
+// {
+//     return new_min + (((original_value - original_min) / (original_max - original_min)) * (new_max - new_min));
+// }
+// 
+// 
+// float SampleCloudDensity(float3 p, float3 weather_data, int mip_level, bool doCheaply)
+// {
+//     // get height fraction  (be sure to create a cloud_min_max variable)
+//     float height_fraction = GetHeightFractionForPoint(p, cloud_min_max)
+//     
+//     // wind settings
+//     float3 wind_direction = float3(1.0, 0.0, 0.0);
+//     float cloud_speed = 10.0;
+//  
+//     // cloud_top offset - push the tops of the clouds along this wind direction by this many units.
+//     float cloud_top_offset = 500.0;
+//  
+//     // skew in wind direction
+//     p += height_fraction * wind_direction * cloud_top_offset;
+//  
+//     //animate clouds in wind direction and add a small upward bias to the wind direction
+//     p += (wind_direction + float3(0.0, 0.1, 0.0)) * time * cloud_speed;
+// 
+//     // read the low frequency Perlin-Worley and Worley noises
+//     float4 low_frequency_noises = tex3Dlod(Cloud3DNoiseTextureA, Cloud3DNoiseSamplerA, float4(p, mip_level)).rgba;
+//  
+//     // build an fBm out of  the low frequency Worley noises that can be used to add detail to the Low frequency Perlin-Worley noise
+//     float low_freq_fBm = (low_frequency_noises.g * 0.625) + (low_frequency_noises.b * 0.25) + (low_frequency_noises.a * 0.125);
+//  
+//     // define the base cloud shape by dilating it with the low frequency fBm made of Worley noise.
+//     float base_cloud = Remap(low_frequency_noises.r, -(1.0 - low_freq_fBm), 1.0, 0.0, 1.0);
+//  
+//     // Get the density-height gradient using the density-height function (not included)
+//     float density_height_gradient = GetDensityHeightGradientForPoint(height_fraction, weather_data);
+//  
+//     // apply the height function to the base cloud shape
+//     base_cloud *= density_height_gradient;
+// 
+//     // cloud coverage is stored in the weather_data’s red channel.
+//     float cloud_coverage = weather_data.r;
+// 
+//     // apply anvil deformations
+//     cloud_coverage = pow(cloud_coverage, Remap(height_fraction, 0.7, 0.8, 1.0, lerp(1.0, 0.5, anvil_bias)));
+//  
+//     //Use remapper to apply cloud coverage attribute
+//     float base_cloud_with_coverage = Remap(base_cloud, cloud_coverage, 1.0, 0.0, 1.0);
+//  
+//     //Multiply result by cloud coverage so that smaller clouds are lighter and more aesthetically pleasing.
+//     base_cloud_with_coverage *= cloud_coverage;
+// 
+//     //define final cloud value
+//     float final_cloud = base_cloud_with_coverage;
+// 
+//     // only do detail work if we are taking expensive samples!
+//     if (!doCheaply)
+//     {
+// 
+//         // add some turbulence to bottoms of clouds using curl noise.  Ramp the effect down over height and scale it by some value (200 in this example)
+//         float2 curl_noise = tex2Dlod(Cloud2DNoiseTexture, Cloud2DNoiseSampler, float4(float2(p.x, p.y), 0.0, 1.0).rg;
+//         p.xy += curl_noise.rg * (1.0 - height_fraction) * 200.0;
+//  
+//         // sample high-frequency noises
+//         float3 high_frequency_noises = tex3Dlod(Cloud3DNoiseTextureB, Cloud3DNoiseSamplerB, float4(p * 0.1, mip_level)).rgb;
+//  
+//         // build High frequency Worley noise fBm
+//         float high_freq_fBm = (high_frequency_noises.r * 0.625) + (high_frequency_noises.g * 0.25) + (high_frequency_noises.b * 0.125);
+//  
+//         // get the height_fraction for use with blending noise types over height
+//         float height_fraction = GetHeightFractionForPoint(p, inCloudMinMax);
+//  
+//         // transition from wispy shapes to billowy shapes over height
+//         float high_freq_noise_modifier = lerp(high_freq_fBm, 1.0 - high_freq_fBm, saturate(height_fraction * 10.0));
+//  
+//         // erode the base cloud shape with the distorted high frequency Worley noises.
+//         final_cloud = Remap(base_cloud_with_coverage, high_freq_noise_modifier * 0.2, 1.0, 0.0, 1.0);
+//      
+//     }
+//     return final_cloud;
+// }
+// 
+// // dl is the density sampled along the light ray for the given sample position.
+// // ds_lodded is the low lod sample of density at the given sample position.
+// 
+// // get light energy
+// float GetLightEnergy(float3 p, float height_fraction, float dl, float ds_loded, float phase_probability, float cos_angle, float step_size, float brightness)
+// {
+//     // attenuation – difference from slides – reduce the secondary component when we look toward the sun.
+//     float primary_attenuation = exp(-dl);
+//     float secondary_attenuation = exp(-dl * 0.25) * 0.7;
+//     float attenuation_probability = max(Remap(cos_angle, 0.7, 1.0, secondary_intensity_curve, secondary_intensity_curve * 0.25), primary_intensity_curve);
+//      
+//     // in-scattering – one difference from presentation slides – we also reduce this effect once light has attenuated to make it directional.
+//     float depth_probability = lerp(0.05 + pow(ds_loded, remap(height_fraction, 0.3, 0.85, 0.5, 2.0)), 1.0, saturate(dl / step_size));
+//     float vertical_probability = pow(remap(height_fraction, 0.07, 0.14, 0.1, 1.0), 0.8);
+//     float in_scatter_probability = depth_probability * vertical_probability;
+// 
+//     float light_energy = attenuation_probability * in_scatter_probability * phase_probability * brightness;
+// 
+//     return light_energy;
+// }
+// 
+// // random unit vectors for your cone sample.
+// static float3 noise_kernel[] =
+// {
+// };
+//  
+// // How wide to make the cone.
+// float cone_spread_multplier = length(light_step);
+//  
+// // a function to gather density in a cone for use with lighting clouds.
+// float SampleCloudDensityAlongCone(p, ray_direction)
+// {
+//     float density_along_cone = 0.0;
+//  
+//     // lighting ray march loop
+//     for (int i = 0; i <= 6; i++)
+//     {
+//         // add the current step offset to the sample position
+//         p += light_step + (cone_spread_multiplier * noise_kernel[i] * float(i));
+//         // sample cloud density the expensive way
+//         int mip_offset = int(i * 0.5);
+//         density_along_cone += SampleCloudDensity(p, weather_data, mip_level + mip_offset, false);
+//     }
+//     return density_along_cone;
+// }
+// 
+// 
+// void RayMarch()
+// {
+//     float ds = 0.0;
+//     float cloud_test = 0.0;
+//     int zero_density_sample_count = 0;
+//     float sampled_density_previous = -1.0;
+//     float alpha = 0.0;
+//  
+//     // start the main ray-march loop
+//     for (int i = 0; i < sample_count; i++)
+//     {
+//         if (alpha <= 1.0)
+//         {
+//             // cloud_test starts as zero so we always evaluate the second case from the beginning 
+//             if (cloud_test > 0.0)
+//             {
+//                 // sample density the expensive way by setting the last parameter, to false, indicating a full sample.
+//                 float sampled_density = SampleCloudDensity(p, weather_data, mip_level, false);
+//        
+//                 // If we just sampled a zero and the previous sample was zero, increment the counter
+//                 if (sampled_density == 0.0 && sampled_density_previous == 0.0)
+//                 {
+//                     zero_density_sample_count++;
+//                 }
+//                 // if we are doing an expensive sample that is still potentially in the cloud...
+//                 if (zero_density_sample_count < 11 && sampled_density != 0.0)
+//                 {
+//                     ds += sampled_density;
+//                     dl = SampleCloudDensityAlongCone(p, ray_direction);
+//                     // get light energy here
+//                     // add to alpha here
+//                     // attenuate light energy by alpha here to get light intensity        
+//                     p += step;
+//                 } // if not, then set cloud_test to zero so that we go back to the cheap sample case
+//                 else
+//                 {
+//                     cloud_test = 0.0;
+//                     zero_density_sample_count = 0;
+//                 }
+//                 sampled_density_previous = sampled_density;
+//             }
+//             else
+//             {
+//                 // sample density the cheap way, only using the low frequency noise
+//                 cloud_test = SampleCloudDensity(p, weather_data, mip_level, true);
+//                 if (cloud_test == 0.0)
+//                 {
+//                     p += step * 2;
+//                 }
+//                 else //take a step back and capture area we skipped.
+//                 {
+//                     p– = step;
+//                 }
+//             }
+//         }
+//     }
+// }
+
+/*
+struct CloudRenderingGlobalInfo
+{
+    float mMaxDistance; // Distance to terrain intersection
+    float3 mCameraPosition;
+    float3 mViewDirection;
+    float mJitteredHash;
+    float mStaticHash;
+};
+
+struct CloudRenderingPixelData
+{
+    float mTransmittance;
+};
+
+struct CloudRenderingRaymarchInfo
+{
+    float mDistance; // Current distance from camera along the main ray
+    // float mCloudDistance; // Distance to the nearest voxel cloud "surface"
+    float mStepSize;
+};
+
+//
+// Function to remap a value from one range to another. It is slightly cheaper than SetRange
+//
+#define ValueRemapFuncionDef(DATA_TYPE) \
+	DATA_TYPE ValueRemap(DATA_TYPE inValue, DATA_TYPE inOldMin, DATA_TYPE inOldMax, DATA_TYPE inMin, DATA_TYPE inMax) \
+	{ \
+		DATA_TYPE old_min_max_range = (inOldMax - inOldMin); \
+		DATA_TYPE clamped_normalized = saturate((inValue - inOldMin) / old_min_max_range); \
+		return inMin + (clamped_normalized*(inMax - inMin)); \
+	}
+
+ValueRemapFuncionDef(float)
+ValueRemapFuncionDef(float2)
+ValueRemapFuncionDef(float3)
+ValueRemapFuncionDef(float4)
+
+//
+// Function to erode a value given an erosion amount. A simplified version of SetRange.
+//
+float ValueErosion(float inValue, float inOldMin)
+{
+	// derrived from Set-Range, this function uses the oldMin to erode or inflate the input value. - inValues inflate while + inValues erode
+    float old_min_max_range = (1.0 - inOldMin);
+    float clamped_normalized = saturate((inValue - inOldMin) / old_min_max_range);
+    return (clamped_normalized);
+}
+
+//
+// Funcion to get a fractional height value within the cloud rendering domain. 
+//
+float GetFractionFromValue(float inValue, float inMin, float inMax)
+{
+    return saturate((inValue - inMin) / (inMax - inMin));
+}
+
+//
+// Function to get mipmap level for voxel clouds
+// 
+float GetVoxelCloudMipLevel(CloudRenderingRaymarchInfo inRaymarchInfo, float inBaseMipLevel)
+{
+	// Apply Distance based Mip Offset
+    float mipmap_level = cUseVoxelFineDetailMipMaps ? log2(1.0 + abs(inRaymarchInfo.mDistance * cVoxelFineDetailMipMapDistanceScale)) + inBaseMipLevel : inBaseMipLevel;
+
+	// return result
+    return mipmap_level;
+}
+
+//
+// Func to upres low res voxel data
+//
+float GetUprezzedVoxelCloudDensity(CloudRenderingRaymarchInfo inRaymarchInfo, float3 inSamplePosition, float inDimensionalProfile, float inType, float inDensityScale, float inMipLevel, bool inHFDetails)
+{
+	// Apply wind offset 
+    inSamplePosition -= float3(cCloudWindOffset.x, cCloudWindOffset.y, 0.0) * low_cloud_animation_speed;
+	
+	// Sample noise
+    float mipmap_level = GetVoxelCloudMipLevel(inRaymarchInfo, inMipLevel);
+    float4 noise = Cloud3DNoiseTextureC.SampleLOD(Cloud3DNoiseSamplerC, inSamplePosition * 0.01, mipmap_level);
+
+	// Define wispy noise
+    float wispy_noise = lerp(noise.r, noise.g, inDimensionalProfile);
+
+	// Define billowy noise 
+    float billowy_type_gradient = pow(inDimensionalProfile, 0.25);
+    float billowy_noise = lerp(noise.b * 0.3, noise.a * 0.3, billowy_type_gradient);
+
+	// Define Noise composite - blend to wispy as the density scale decreases.
+    float noise_composite = lerp(wispy_noise, billowy_noise, inType);
+
+	// Get the hf noise which is to be applied nearby - First, get the distance from the sample to camera and only do the work within a distance of 150 meters. 
+    if (inHFDetails)
+    {
+		// Get the hf noise by folding the highest frequency billowy noise. 
+        float hhf_noise = saturate(lerp(1.0 - pow(abs(abs(noise.g * 2.0 - 1.0) * 2.0 - 1.0), 4.0), pow(abs(abs(noise.a * 2.0 - 1.0) * 2.0 - 1.0), 2.0), inType));
+	
+		// Apply the HF nosie near camera.
+        float hhf_noise_distance_range_blender = ValueRemap(inRaymarchInfo.mDistance, 50.0, 150.0, 0.9, 1.0);
+        noise_composite = lerp(hhf_noise, noise_composite, hhf_noise_distance_range_blender);
+    }
+
+	// Composote Noises and use as a Value Erosion
+    float uprezzed_density = ValueErosion(inDimensionalProfile, noise_composite);
+
+	// Modify User density scale
+    float powered_density_scale = pow(saturate(inDensityScale), 4.0);
+
+	// Apply User Density Scale Data to Result
+    uprezzed_density *= powered_density_scale;
+		
+	// Sharpen result
+    uprezzed_density = pow(uprezzed_density, lerp(0.3, 0.6, max(EPSILON, powered_density_scale)));
+    if (inHFDetails)
+    {
+        float hhf_noise_distance_range_blender = GetFractionFromValue(inRaymarchInfo.mDistance, 50.0, 150.0);
+        uprezzed_density = pow(uprezzed_density, lerp(0.5, 1.0, hhf_noise_distance_range_blender)) * lerp(0.666, 1.0, hhf_noise_distance_range_blender);
+    }
+
+	// Return result with softened edges
+    return uprezzed_density;
+}
+
+//
+// Get voxel cloud density
+//
+VoxelCloudDensitySamples GetVoxelCloudDensitySamples(CloudRenderingRaymarchInfo inRaymarchInfo, float3 inSamplePosition, float inMipLevel, bool inHFDetails)
+{
+	// Init Output
+    VoxelCloudDensitySamples density_samples;
+
+	// Get Sample Coordinates
+    float3 sample_coord = (inSamplePosition - cVoxelCloudBoundsMin) / (cVoxelCloudBoundsMax - cVoxelCloudBoundsMin);
+    float3 modeling_data = VoxelCloudModelingDataTexture.SampleLOD(VoxelDataSampler, sample_coord, inMipLevel).rgb;
+
+	// Assign data
+    float dimensional_profile = modeling_data[0];
+    float type = modeling_data[1];
+    float density_scale = modeling_data[2];
+	
+	// Upres Density Data only if dimensional profile is nonzero. When rendering the reflection dome we don't up-res as fine details will hardly 
+	// be visible in the reflections anyways.
+    if (dimensional_profile > 0.0)
+    {
+        density_samples.mProfile = dimensional_profile * density_scale;
+
+		// Scale down density close to camera so that aloy is visible inside of clouds and we mitigate the worst animated noise artifacts.
+        if (!cRenderDome)
+            density_samples.mFull = GetUprezzedVoxelCloudDensity(inRaymarchInfo, inSamplePosition, dimensional_profile, type, density_scale, inMipLevel, inHFDetails) * ValueRemap(inRaymarchInfo.mDistance, 10.0, 120.0, 0.25, 1.0);
+        else
+            density_samples.mFull = density_samples.mProfile;
+    }
+    else
+    {
+        density_samples.mFull = density_samples.mProfile = 0.0;
+    }
+
+	// Return result
+    return density_samples;
+}
+
+
+//
+// Execute main raymarch function for the view ray - marhces over the detected intersection segment and returns pixel data
+//
+void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, inout CloudRenderingPixelData ioPixelData)
+{
+    // Define step size constants
+    float nearStepSize = 3.0;
+    float farStepSizeOffset = 60.0;
+    float stepAdjustmentDistance = 16384.0;
+    
+    float viewRayTransmittanceLimit = 0.001;
+    
+    // Init raymarch info struct and set the start distance to the beginning of the ray segment
+    CloudRenderingRaymarchInfo raymarchInfo;
+    raymarchInfo.mDistance = inRaySegment[0];
+    
+    // Raymarch as long as the distance to place is less than the distance to the end of the segment or terrain intersection
+    while (ioPixelData.mTransmittance > viewRayTransmittanceLimit && raymarchInfo.mDistance < min(inRaySegment[1], inGlobalInfo.mMaxDistance))
+    {
+        // Calculate the sample position by adding the distance times the view vector to the camera position
+        float3 samplePos = inGlobalInfo.mCameraPosition + inGlobalInfo.mViewDirection * raymarchInfo.mDistance;
+        
+        // Calculate distanced-based step size (Nubis, Evolved)
+        raymarchInfo.mStepSize = nearStepSize + ((farStepSizeOffset * raymarchInfo.mDistance) / stepAdjustmentDistance);
+        
+        // Apply the jitter offset - this is based on the step size and only animates within a certain distance from camera
+        float jitterDistance = (raymarchInfo.mDistance < 250.0 ? inGlobalInfo.mJitteredHash : inGlobalInfo.mStaticHash) * raymarchInfo.mStepSize;
+        samplePos += inGlobalInfo.mViewDirection * jitterDistance;
+        
+        
+        // Take a step
+        raymarchInfo.mDistance += raymarchInfo.mStepSize;
+    }
+
+}
+*/

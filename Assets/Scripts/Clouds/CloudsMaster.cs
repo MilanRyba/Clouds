@@ -7,6 +7,8 @@ public class CloudsMaster : MonoBehaviour
 {
 	[Header("Weather")]
 
+	public Texture2D WeatherMap;
+
 	[Range(0.0f, 1.0f)]
 	public float Coverage = 0.9f;
 
@@ -165,6 +167,7 @@ public class CloudsMaster : MonoBehaviour
 		m_Clouds.SetTexture(0, "ShapeTexture", m_ShapeNoise);
 		m_Clouds.SetTexture(0, "DetailTexture", m_DetailNoise);
 		m_Clouds.SetTexture(0, "HeightGradient", m_HeightDensityGradient);
+		m_Clouds.SetTexture(0, "WeatherMap", WeatherMap);
 		m_Clouds.SetTexture(0, "SceneTexture", source);
 		m_Clouds.SetTexture(0, "DepthTexture", Shader.GetGlobalTexture("_CameraDepthTexture"));
 		m_Clouds.SetTexture(0, "Output", m_IntermediateTexture);

@@ -1,0 +1,367 @@
+#pragma kernel CloudsPlayground
+
+#include "../Clouds/Common.hlsl"
+
+float2 ViewportDimensions;
+float2 ViewportDimensionsInv;
+
+float3 CameraPosition;
+float4x4 ProjInv;
+float4x4 ViewInv;
+
+float3 BoundsMin;
+float3 BoundsMax;
+float3 BoxCenter;
+float3 BoxBounds;
+
+float Absorption;
+int NumSamples;
+int NumLightSamples;
+float3 SunDirection;
+float3 SunColor;
+
+float CloudType;
+
+float Eccentricity;
+float SilverIntensity;
+float SilverSpread;
+float LightIntensity;
+
+int DEBUG_EarlyExit;
+
+RWTexture2D<float4> Result;
+
+Texture2D SceneTexture;
+Texture2D DepthTexture;
+Texture2D WeatherMap;
+Texture3D CloudNoise;
+
+SamplerState sLinearRepeat;
+SamplerState sLinearClamp;
+SamplerState sPointRepeat;
+SamplerState sPointClamp;
+
+static bool PixelExitedEarly = false;
+
+static const float cPlanetRadius = 60000.0;
+static const float cCloudMinShell = 256.0;
+static const float cCloudMaxShell = 2048.0;
+
+float sdBox(float3 p, float3 b)
+{
+    float3 q = abs(p) - b;
+    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+
+//
+// Funcion to get a fractional height value within the cloud rendering domain. 
+//
+float GetFractionFromValue(float inValue, float inMin, float inMax)
+{
+    return saturate((inValue - inMin) / (inMax - inMin));
+}
+
+// Cloud types height density gradients
+#define STRATUS_GRADIENT float4(0.0, 0.1, 0.2, 0.3)
+#define STRATOCUMULUS_GRADIENT float4(0.02, 0.2, 0.48, 0.625)
+#define CUMULUS_GRADIENT float4(0.00, 0.1625, 0.88, 0.98)
+
+float getDensityGradient(float heightFraction, float cloudType)
+{
+    float stratusFactor = 1.0 - clamp(cloudType * 2.0, 0.0, 1.0);
+    float stratoCumulusFactor = 1.0 - abs(cloudType - 0.5) * 2.0;
+    float cumulusFactor = clamp(cloudType - 0.5, 0.0, 1.0) * 2.0;
+
+    float4 baseGradient = stratusFactor * float4(0.0, 0.1, 0.2, 0.3)
+    + stratoCumulusFactor * float4(0.02, 0.2, 0.48, 0.625) + cumulusFactor * float4(0.00, 0.1625, 0.88, 0.98);
+
+    // gradient computation (see Siggraph 2017 Nubis-Decima talk)
+    return Remap(heightFraction, baseGradient.x, baseGradient.y, 0.0, 1.0) * Remap(heightFraction, baseGradient.z, baseGradient.w, 1.0, 0.0);
+}
+
+float GetVerticalProfile(float inHeight, float inCloudType)
+{
+    inHeight = saturate(inHeight);
+    
+    float cumulus = max(0.0, Remap(inHeight, 0.0, 0.2, 0.0, 1.0) * Remap(inHeight, 0.7, 0.9, 1.0, 0.0));
+    float stratocumulus = max(0.0, Remap(inHeight, 0.0, 0.2, 0.0, 1.0) * Remap(inHeight, 0.2, 0.7, 1.0, 0.0));
+    float stratus = max(0.0, Remap(inHeight, 0.0, 0.1, 0.0, 1.0) * Remap(inHeight, 0.2, 0.3, 1.0, 0.0));
+
+    float d1 = lerp(stratus, stratocumulus, saturate(inCloudType * 2.0));
+    float d2 = lerp(stratocumulus, cumulus, saturate((inCloudType - 0.5) * 2.0));
+    return lerp(d1, d2, inCloudType);
+}
+
+float SampleBoxDensity(float3 inPosition)
+{
+    float d = sdBox(inPosition, BoxBounds);
+    if (d >= 0)
+    {
+        float u = GetFractionFromValue(inPosition.x, BoundsMin.x, BoundsMax.x);
+        float v = GetFractionFromValue(inPosition.z, BoundsMin.z, BoundsMax.z);
+        float coverage = WeatherMap.SampleLevel(sLinearRepeat, float2(u, v) * 2.0, 0.0).b;
+        coverage = 1;
+        return coverage * Absorption;
+    }
+    else
+        return 0.0;
+}
+
+float GetDimensionalProfile(float3 inSamplePosition, float inHeight01)
+{
+    float verticalProfile = getDensityGradient(inHeight01, CloudType);
+    float coverage = SampleBoxDensity(inSamplePosition);
+    
+    return verticalProfile * coverage;
+}
+
+float GetUprezzedCloudDensity(float3 inSamplePosition, float inDimensionalProfile, float inType, float inDensityScale)
+{
+    float4 noise = CloudNoise.SampleLevel(sLinearRepeat, inSamplePosition * 2.0, 0);
+    
+    // Define wispy noise
+    float wispy_noise = lerp(noise.r, noise.g, inDimensionalProfile);
+
+	// Define billowy noise 
+    float billowy_type_gradient = pow(inDimensionalProfile, 0.25);
+    float billowy_noise = lerp(noise.b * 0.3, noise.a * 0.3, billowy_type_gradient);
+
+	// Define Noise composite - blend to wispy as the density scale decreases.
+    float noise_composite = lerp(wispy_noise, billowy_noise, inType);
+    
+    float cloudDensity = saturate(noise.r - (1.0 - inDimensionalProfile));
+    
+    return cloudDensity;
+}
+
+// A function to gather density in a cone for use with lighting clouds
+// inSamplePosition is the current position in the main ray march
+// inRayDirection is the direction toward sun
+float SampleCloudDensityToSun(float3 inSamplePosition, float3 inRayDirection, float inStepSize)
+{
+    float densityAlongCone = 0.0;
+    float3 samplePosition = inSamplePosition;
+    
+    // Lighting ray march loop
+    for (int i = 0; i < NumLightSamples; i++)
+    {
+        // Add the current step offset to the sample positon
+        samplePosition += inRayDirection * inStepSize;
+        float height = GetFractionFromValue(samplePosition.y, BoundsMin.y, BoundsMax.y);
+        
+        densityAlongCone += GetDimensionalProfile(samplePosition, height);
+
+    }
+    return densityAlongCone * inStepSize;
+}
+
+// inDensityLight is the density sampled along the light ray for the given sample position
+float GetLightEnergy(float inDensityLight, float inCosAngle, float inPhaseProbability, float inBrightness)
+{
+    // The attenuation value for the second function was reduced to push light further into the cloud
+    // However, we reduced its influence so that we didn't overpower the result
+    float primaryAttenuation = exp(-inDensityLight);
+    float secondaryAttenuattion = exp(-inDensityLight * 0.25) * 0.7;
+    float attenuationProbability = max(Remap(inCosAngle, 0.7, 1.0, secondaryAttenuattion, secondaryAttenuattion * 0.25), primaryAttenuation);
+    
+    float lightEnergy = primaryAttenuation;
+    
+    return lightEnergy;
+}
+
+struct ScatteringTransmittance
+{
+    float3 Scattering;
+    float Transmittance;
+};
+
+ScatteringTransmittance RaymarchClouds(float3 inStartPos, float3 inEndPos)
+{
+    float3 rayDirection = inEndPos - inStartPos;
+    float pathLength = length(rayDirection);
+    float stepSize = pathLength / NumSamples;
+    
+    rayDirection = normalize(rayDirection);
+    SunDirection = normalize(-SunDirection);
+    
+    // Calculate phase
+    float cosAngle = dot(SunDirection, rayDirection);
+    float phase = HorizonPhase(cosAngle, Eccentricity, SilverIntensity, SilverSpread);
+    
+    float3 samplePos = inStartPos;
+    float cloudMin = BoundsMin.y;
+    float cloudMax = BoundsMax.y;
+    
+    ScatteringTransmittance st;
+    st.Scattering = 0;
+    st.Transmittance = 1;
+    
+    for (int i = 0; i < NumSamples; i++)
+    {
+        float height01 = GetFractionFromValue(samplePos.y, cloudMin, cloudMax);
+        float dimensionalProfile = GetDimensionalProfile(samplePos, height01);
+        if (dimensionalProfile > 0.0)
+        {
+            float cloudDensity = GetUprezzedCloudDensity(samplePos, dimensionalProfile, CloudType, 1.0);
+            cloudDensity = max(cloudDensity, 0.00001);
+            
+            float lightDensity = SampleCloudDensityToSun(samplePos, SunDirection, stepSize);
+            float3 lightEnergy = GetLightEnergy(lightDensity, cosAngle, phase, LightIntensity) * SunColor;
+            float transmittance = exp(-cloudDensity * stepSize);
+            
+            float3 integScattering = (lightEnergy - lightEnergy * transmittance) / cloudDensity;
+            
+            st.Scattering += st.Transmittance * integScattering;
+            st.Transmittance *= transmittance;
+            
+            if (st.Transmittance < 0.001)
+            {
+                PixelExitedEarly = DEBUG_EarlyExit;
+                break;
+            }
+        }
+        
+        samplePos += rayDirection * stepSize;
+    }
+    
+    return st;
+}
+
+struct CloudRenderingGlobalInfo
+{
+    float mMaxDistance; // Distance to terrain intersection
+    float mSampleCount;
+    float3 mCameraPosition;
+    float3 mViewDirection;
+    float mJitteredHash;
+    float mStaticHash;
+};
+
+struct CloudRenderingPixelData
+{
+    float mTransmittance;
+};
+
+struct CloudRenderingRaymarchInfo
+{
+    float mDistance; // Current distance from camera along the main ray
+    float mStepSize;
+};
+
+//
+// Execute main raymarch function for the view ray - marhces over the detected intersection segment and returns pixel data
+//
+void RaymarchClouds(CloudRenderingGlobalInfo inGlobalInfo, float2 inRaySegment, inout CloudRenderingPixelData ioPixelData)
+{
+    // Define step size constants
+    float nearStepSize = 3.0;
+    float farStepSizeOffset = 60.0;
+    float stepAdjustmentDistance = 16384.0;
+    
+    float viewRayTransmittanceLimit = 0.001;
+    
+    // Init raymarch info struct and set the start distance to the beginning of the ray segment
+    CloudRenderingRaymarchInfo raymarchInfo;
+    raymarchInfo.mDistance = inRaySegment[0];
+    
+    for (int i = 0; i < inGlobalInfo.mSampleCount; i++)
+    {
+        // Calculate the sample position by adding the distance times the view vector to the camera position
+        float3 samplePos = inGlobalInfo.mCameraPosition + inGlobalInfo.mViewDirection * raymarchInfo.mDistance;
+        
+        // Calculate distanced-based step size (Nubis, Evolved)
+        raymarchInfo.mStepSize = nearStepSize + ((farStepSizeOffset * raymarchInfo.mDistance) / stepAdjustmentDistance);
+        
+        // Apply the jitter offset - this is based on the step size and only animates within a certain distance from camera
+        float jitterDistance = (raymarchInfo.mDistance < 250.0 ? inGlobalInfo.mJitteredHash : inGlobalInfo.mStaticHash) * raymarchInfo.mStepSize;
+        samplePos += inGlobalInfo.mViewDirection * jitterDistance;
+        
+        
+        // Take a step
+        raymarchInfo.mDistance += raymarchInfo.mStepSize;
+    }
+    
+    // Raymarch as long as the distance to place is less than the distance to the end of the segment or terrain intersection
+        while (ioPixelData.mTransmittance > viewRayTransmittanceLimit && raymarchInfo.mDistance < min(inRaySegment[1], inGlobalInfo.mMaxDistance))
+        {
+        
+        }
+
+}
+
+[numthreads(16, 16, 1)]
+void CloudsPlayground(uint3 id : SV_DispatchThreadID)
+{
+    if (any((float2)id.xy >= ViewportDimensions))
+        return;
+    
+    // float2 debugUV = InverseLerp((float2) id.xy, float2(20.0f, 20.0f), float2(300.0f, 300.0f));
+    // if (all(debugUV >= 0.0f) && all(debugUV <= 1.0f))
+    // {
+    //     float3 pos = float3(debugUV.x, 0.0, debugUV.y);
+    //     Result[id.xy] = MaskChannels(CloudNoise.SampleLevel(sLinearRepeat, pos, 0), float4(0, 0, 0, 1));
+    //     return;
+    // }
+    
+    float2 uv = TexelToUV(id.xy, ViewportDimensionsInv);
+    float4 sceneColor = SceneTexture.SampleLevel(sPointClamp, uv, 0);
+    float sceneDepth = DepthTexture.SampleLevel(sPointClamp, uv, 0).r;
+    
+    // Geometry in the scene is obscuring the clouds
+    if (sceneDepth > 0.0)
+    {
+        Result[id.xy] = sceneColor;
+        return;
+    }
+    
+    Ray cameraRay = CreateCameraRay(uv, CameraPosition, ProjInv, ViewInv);
+    
+    float minT = -1e10;
+    float maxT = -1e10;
+    
+    // float2 hit;
+    // if (RayBoxIntersect(BoundsMin, BoundsMax, cameraRay, hit))
+    // {
+    //     if (all(hit > 0.0))
+    //     {
+    //         // Ray hit the box from outside
+    //         // minT is the closer intersection and maxT is the farther one
+    //         minT = min(hit.x, hit.y);
+    //         maxT = max(hit.x, hit.y);
+    //     }
+    //     else
+    //     {
+    //         // Ray hit the box from inside
+    //         minT = 0.0;
+    //         maxT = max(hit.x, hit.y);
+    //     }
+    // }
+    // else
+    // {
+    //     Result[id.xy] = sceneColor;
+    //     return;
+    // }
+
+    float3 startPos = cameraRay.Origin + cameraRay.Direction * minT;
+    float3 endPos = cameraRay.Origin + cameraRay.Direction * maxT;
+    ScatteringTransmittance st = RaymarchClouds(startPos, endPos);
+    
+    // Determine start end position + take into account CloudMinHeight and CloudMaxHeight
+    
+    CloudRenderingGlobalInfo globalInfo;
+    globalInfo.mCameraPosition = CameraPosition;
+    globalInfo.mViewDirection = cameraRay.Direction;
+    globalInfo.mSampleCount = NumSamples;
+    globalInfo.mMaxDistance = 
+    globalInfo.mJitteredHash = 0.0f;
+    globalInfo.mStaticHash = 0.0f;
+    
+    if (PixelExitedEarly)
+    {
+        Result[id.xy] = float4(0.7, 0.1, 0.9, 1);
+        return;
+    }
+    
+    float3 finalColor = sceneColor.rgb * st.Transmittance + st.Scattering;
+    Result[id.xy] = float4(finalColor, 1);
+}

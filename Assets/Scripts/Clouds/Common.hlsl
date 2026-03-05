@@ -19,9 +19,9 @@ float Remap(float originalValue, float originalMin, float originalMax, float new
     return newMin + (((originalValue - originalMin) / (originalMax - originalMin)) * (newMax - newMin));
 }
 
-float2 TexelToUV(uint2 texel, float2 texelSize)
+float2 TexelToUV(uint2 inTexel, float2 inTexelSize)
 {
-    return ((float2) texel + 0.5f) * texelSize;
+    return ((float2) inTexel + 0.5f) * inTexelSize;
 }
 
 float3 TexelToUV(uint3 texel, float3 texelSize)
@@ -48,12 +48,54 @@ float4 MaskChannels(float4 inValue, float4 inChannelMask)
     return inValue;
 }
 
-// Collisions
-float2 RaySphereIntersection(float3 center, float radius, float3 origin, float3 direction)
+struct Ray
 {
-    float3 of = origin - center;
+    float3 mOrigin;
+    float3 mDirection;
+};
+
+Ray GetCameraRay(float2 inUV, float3 inCameraPosition, float4x4 inProjInv, float4x4 inViewInv)
+{
+    Ray ray;
+    ray.mOrigin = inCameraPosition;
+    ray.mDirection = mul(inProjInv, float4(inUV * 2.0 - 1.0, 0.0f, 1.0f)).xyz;
+    ray.mDirection = mul(inViewInv, float4(ray.mDirection, 0.0f)).xyz;
+    ray.mDirection = normalize(ray.mDirection);
+    return ray;
+}
+
+//
+// Collisions
+//
+
+// Returns distance to first and second box intersection
+bool RayBoxIntersect(float3 boundsMin, float3 boundsMax, Ray inRay, out float2 hit)
+{
+    float3 invRaydir = 1.0 / inRay.mDirection;
+
+    float3 t0 = (boundsMin - inRay.mOrigin) * invRaydir;
+    float3 t1 = (boundsMax - inRay.mOrigin) * invRaydir;
+    float3 tmin = min(t0, t1);
+    float3 tmax = max(t0, t1);
+                
+    float dstA = max(max(tmin.x, tmin.y), tmin.z);
+    float dstB = min(tmax.x, min(tmax.y, tmax.z));
+    
+    if (dstA > dstB)
+    {
+        hit = -1;
+        return false;
+    }
+    
+    hit = float2(dstA, dstB);
+    return true;
+}
+
+float2 RaySphereIntersection(float3 center, float radius, Ray ray)
+{
+    float3 of = ray.mOrigin - center;
     const float a = 1.0;
-    float b = 2.0 * dot(of, direction);
+    float b = 2.0 * dot(of, ray.mDirection);
     float c = dot(of, of) - radius * radius;
     float discriminant = b * b - 4.0 * a * c;
 
@@ -69,4 +111,34 @@ float2 RaySphereIntersection(float3 center, float radius, float3 origin, float3 
         }
     }
     return float2(0.0, 0.0);
+}
+
+//
+// Phase functions
+//
+
+float IsotropicPhase()
+{
+    return 1.0 / (4.0 * PI);
+}
+
+float HenyeyGreenstein(float inCosAngle, float inEccentricity)
+{
+    float eccentricity2 = inEccentricity * inEccentricity;
+    return ((1.0 - eccentricity2) / pow((1.0 + eccentricity2 - 2.0 * inEccentricity * inCosAngle), 3.0 / 2.0)) / 4.0 * PI;
+}
+
+// 2-lobe phase function from 'Physically Based Sky, Atmosphere and Cloud Rendering in Frostbite'
+// Allows users to better balance forward and backward scattering
+// Default: inForwardScatter = 0.8, inBackwardScatter = -0.5, inWeight = 0.5
+float DualLobePhase(float inCosAngle, float inForwardScatter, float inBackwardScatter, float inWeight)
+{
+    return lerp(HenyeyGreenstein(inCosAngle, inForwardScatter), HenyeyGreenstein(inCosAngle, inBackwardScatter), inWeight);
+}
+
+// Phase function presented in 'Nubis: Authoring Real-Time Volumetric Cloudscapes with the Decima Engine'
+// inSilverIntensity controls the intensity of the second phase function and inSilverSpread controls its spread away from the sun
+float HorizonPhase(float inCosAngle, float inEccentricity, float inSilverIntensity, float inSilverSpread)
+{
+    return max(HenyeyGreenstein(inCosAngle, inEccentricity), inSilverIntensity * HenyeyGreenstein(inCosAngle, 0.99 - inSilverSpread));
 }
