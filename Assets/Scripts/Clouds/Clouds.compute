@@ -79,6 +79,22 @@ float GetHeightFractionForPoint(float3 p)
     return saturate((height - CLOUDS_BOTTOM_LAYER) / (CLOUDS_TOP_LAYER - CLOUDS_BOTTOM_LAYER));
 }
 
+float GetVerticalProfile(float inHeight, float inCloudType)
+{
+    const float4 stratusGradient = float4(0.0, 0.05, 0.18, 0.22);
+    const float4 cumulusGradient = float4(0.0, 0.2, 0.42, 0.6);
+    const float4 cumulonimbusGradient = float4(0.0, 0.08, 0.8, 0.98);
+
+    float a = 1.0f - saturate(inCloudType * 2.0f);
+    float b = 1.0f - abs(inCloudType - 0.5f) * 2.0f;
+    float c = saturate(inCloudType - 0.5f) * 2.0f;
+    float4 gradient = stratusGradient * a + cumulusGradient * b + cumulonimbusGradient * c;
+
+    float v1 = saturate(InverseLerp(inHeight, gradient.x, gradient.y));
+    float v2 = saturate(InverseLerp(inHeight, gradient.w, gradient.z));
+    return v1 * v2;
+}
+
 float SampleCloudDensity(float3 p, bool cheapSample)
 {    
     float heightFraction = GetHeightFractionForPoint(p);
@@ -102,7 +118,8 @@ float SampleCloudDensity(float3 p, bool cheapSample)
     float baseCloud = Remap(lowFrequencyNoises.r, -(1.0 - lowFreqFBM), 1.0, 0.0, 1.0);
     
     // Apply the density height gradient to the base cloud shape
-    float heightGradient= HeightGradient.SampleLevel(sLinearClamp, float2(CloudType, heightFraction), 0).x;
+    // float heightGradient= HeightGradient.SampleLevel(sLinearClamp, float2(CloudType, heightFraction), 0).x;
+    float heightGradient = GetVerticalProfile(heightFraction, CloudType);
     baseCloud *= heightGradient;
     
     // Use remap to apply the cloud coverage attribute

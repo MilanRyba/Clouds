@@ -351,13 +351,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 653479335}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.90736115, y: -0.30593577, z: 0.26067856, w: 0.123067796}
+  m_LocalRotation: {x: 0.3050612, y: -0.27591714, z: 0.8934175, w: -0.18058969}
   m_LocalPosition: {x: 0, y: 3, z: 3.321}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 22.509, y: -205.503, z: -147.892}
+  m_LocalEulerAnglesHint: {x: 22.509, y: -315.74, z: -147.892}
 --- !u!1 &1407044922
 GameObject:
   m_ObjectHideFlags: 0
@@ -463,8 +463,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 585b08ce21e5c594dae89cc1016dae81, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Coverage: 0.51
-  CloudType: 0.4
+  Coverage: 0.393
+  CloudType: 0.503
   WindAngle: 0
   CloudSpeed: 0.01
   CloudTopOffset: 82
@@ -485,9 +485,9 @@ MonoBehaviour:
   DetailNoiseFrequency: 3
   DetailNoiseResolution: 32
   EarlyTerminatedPixels: 0
-  ShowTextureSlices: 0
-  TextureSlice: 0.071
-  ActiveChannel: 0
+  ShowTextureSlices: 1
+  TextureSlice: 0
+  ActiveChannel: 1
   m_Clouds: {fileID: 7200000, guid: 964f4bd3416234b448fc9d7f0860d34d, type: 3}
   m_CloudShapeNoise: {fileID: 7200000, guid: d765d136f9515c04e8a2f1eee6e39635, type: 3}
   m_SlicerShader: {fileID: 7200000, guid: 0151eee97acf32a408b0cdf48d283621, type: 3}

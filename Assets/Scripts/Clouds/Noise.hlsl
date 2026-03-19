@@ -213,7 +213,7 @@ float PerlinNoise(float3 pIn, float frequency, int octaveCount)
         frequency *= octaveFrenquencyFactor;
     }
 
-    float noise = (sum / weightSum); // *0.5 + 0.5;;
+    float noise = (sum / weightSum);// * 0.5 + 0.5;
     noise = min(noise, 1.0f);
     noise = max(noise, 0.0f);
     return noise;
