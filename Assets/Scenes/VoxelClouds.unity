@@ -122,6 +122,58 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &710418458
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 710418460}
+  - component: {fileID: 710418459}
+  m_Layer: 0
+  m_Name: VoxelCloudsGPU
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &710418459
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710418458}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ee85cdb298d17fd409e9997076a2218c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_WorldExtents: {x: 256, y: 32, z: 256}
+  m_VoxelSize: 4
+  m_Shader: {fileID: 7200000, guid: 7f2e64b261559ae42954d120c52e902e, type: 3}
+  m_Material: {fileID: 2100000, guid: fe5c6484421d6bd4e9aaf0ee65189338, type: 2}
+  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+  m_Idx: 11800
+  m_Visualization: 1
+  m_TimeBetweenUpdates: 0.5
+--- !u!4 &710418460
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710418458}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1053773140
 GameObject:
   m_ObjectHideFlags: 0
@@ -301,8 +353,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1069567197}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.19643942, y: -0.30035216, z: 0.06335856, w: 0.93122816}
-  m_LocalPosition: {x: 16.048336, y: 8.298753, z: -21.520834}
+  m_LocalRotation: {x: 0.19256389, y: 0.31700498, z: -0.06571831, w: 0.92634124}
+  m_LocalPosition: {x: -73.47744, y: 25.998997, z: -90.56631}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -324,7 +376,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1420494265
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -338,8 +390,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_PointPrefab: {fileID: 4587628268291571120, guid: 88afd4ea55a4f944f98edcbe2274d40f, type: 3}
-  m_WorldExtents: {x: 20, y: 10, z: 20}
-  m_VoxelSize: 1
+  m_WorldExtents: {x: 25, y: 10, z: 25}
+  m_VoxelSize: 0.5
   m_Sphere1: {fileID: 1583520349}
   m_Sphere2: {fileID: 1530911558}
   m_Idx: 0
@@ -375,7 +427,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!23 &1530911556
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -458,7 +510,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!23 &1583520347
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -533,3 +585,4 @@ SceneRoots:
   - {fileID: 1420494266}
   - {fileID: 1583520349}
   - {fileID: 1530911558}
+  - {fileID: 710418460}

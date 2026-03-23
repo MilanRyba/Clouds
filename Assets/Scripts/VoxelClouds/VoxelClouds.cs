@@ -70,7 +70,7 @@ public class VoxelClouds : MonoBehaviour
 		{
 			m_Activation[i] = 0;
 			m_Clouds[i] = 0;
-			m_Humidity[i] = 0;
+			m_Humidity[i] = 255;
 
 			m_Activation2[i] = 0;
 			m_Clouds2[i] = 0;
@@ -105,18 +105,18 @@ public class VoxelClouds : MonoBehaviour
 					m_ProbabilityGeneration[idx] = 0.0001f;
 
 
-					// World space center of a voxel
-					Vector3 voxelCenter = new Vector3(x + 0.5f, y + 0.5f, z + 0.5f) - m_WorldExtents / 2;
-
-					float result = Mathf.Pow((voxelCenter.x - elCenter.x) / elSize.x, 2) + 
-								   Mathf.Pow((voxelCenter.y - elCenter.y) / elSize.y, 2) + 
-								   Mathf.Pow((voxelCenter.z - elCenter.z) / elSize.z, 2);
-
-					if (result <= 1)
-					{
-						m_ProbabilityExtinction[idx] = 0.0001f;
-						m_ProbabilityGeneration[idx] = 0.1f;
-					}
+					// // World space center of a voxel
+					// Vector3 voxelCenter = new Vector3(x + 0.5f, y + 0.5f, z + 0.5f) - m_WorldExtents / 2;
+					// 
+					// float result = Mathf.Pow((voxelCenter.x - elCenter.x) / elSize.x, 2) + 
+					// 			   Mathf.Pow((voxelCenter.y - elCenter.y) / elSize.y, 2) + 
+					// 			   Mathf.Pow((voxelCenter.z - elCenter.z) / elSize.z, 2);
+					// 
+					// if (result <= 1)
+					// {
+					// 	m_ProbabilityExtinction[idx] = 0.0001f;
+					// 	m_ProbabilityGeneration[idx] = 0.1f;
+					// }
 				}
 			}
 		}
@@ -168,42 +168,40 @@ public class VoxelClouds : MonoBehaviour
 
 	private void Update()
 	{
-		m_Sphere2.position = WorldPositionFromIdx(m_Idx);
-
-		// if (Time.frameCount % 100 == 0)
-		// {
-		// 	SwapBuffers();
-		// 
-		// 	for (int z = 0; z < NumVoxelsZ; z++)
-		// 	{
-		// 		for (int y = 0; y < NumVoxelsY; y++)
-		// 		{
-		// 			for (int x = 0; x < NumVoxelsX; x++)
-		// 			{
-		// 				int idx = IdxFromVoxelCoords(x, y, z);
-		// 
-		// 				bool hum = GetBit(idx, m_ReadableHumidity);
-		// 				bool cld = GetBit(idx, m_ReadableClouds);
-		// 				bool act = GetBit(idx, m_ReadableActivation);
-		// 
-		// 				// TODO: Change parameters in the transition functions to an index
-		// 				TransitionHumidity(x, y, z);
-		// 				TransitionClouds(x, y, z);
-		// 				TransitionActivation(x, y, z);
-		// 
-		// 				ExtinctionClouds(x, y, z);
-		// 				GenerateActivation(x, y, z);
-		// 				GenerateHumidity(x, y, z);
-		// 
-		// 				bool hum1 = GetBit(idx, m_WriteableHumidity);
-		// 				bool cld1 = GetBit(idx, m_WriteableClouds);
-		// 				bool act1 = GetBit(idx, m_WriteableActivation);
-		// 
-		// 				m_Points[idx].gameObject.SetActive(cld1);
-		// 			}
-		// 		}
-		// 	}
-		// }
+		if (Time.frameCount % 100 == 0)
+		{
+			SwapBuffers();
+		
+			for (int z = 0; z < NumVoxelsZ; z++)
+			{
+				for (int y = 0; y < NumVoxelsY; y++)
+				{
+					for (int x = 0; x < NumVoxelsX; x++)
+					{
+						int idx = IdxFromVoxelCoords(x, y, z);
+		
+						bool hum = GetBit(idx, m_ReadableHumidity);
+						bool cld = GetBit(idx, m_ReadableClouds);
+						bool act = GetBit(idx, m_ReadableActivation);
+		
+						// TODO: Change parameters in the transition functions to an index
+						TransitionHumidity(x, y, z);
+						TransitionClouds(x, y, z);
+						TransitionActivation(x, y, z);
+		
+						// ExtinctionClouds(x, y, z);
+						GenerateActivation(x, y, z);
+						GenerateHumidity(x, y, z);
+		
+						bool hum1 = GetBit(idx, m_WriteableHumidity);
+						bool cld1 = GetBit(idx, m_WriteableClouds);
+						bool act1 = GetBit(idx, m_WriteableActivation);
+		
+						m_Points[idx].gameObject.SetActive(cld1);
+					}
+				}
+			}
+		}
 	}
 
 	#region TransitionRules
@@ -340,18 +338,18 @@ public class VoxelClouds : MonoBehaviour
 		Gizmos.color = Color.yellow;
 		Gizmos.DrawWireCube(Vector3.zero, m_WorldExtents);
 
-		if (Application.isPlaying)
-		{
-			Gizmos.color = Color.cyan;
-			for (int i = 0; i < Volume; i++)
-			{
-				// if (m_Points[i].gameObject.activeSelf == false)
-				// 	continue;
-
-				Transform t = m_Points[i];
-				Gizmos.DrawWireCube(t.localPosition, t.localScale);
-			}
-		}
+		// if (Application.isPlaying)
+		// {
+		// 	Gizmos.color = Color.cyan;
+		// 	for (int i = 0; i < Volume; i++)
+		// 	{
+		// 		if (m_Points[i].gameObject.activeSelf == false)
+		// 			continue;
+		// 
+		// 		Transform t = m_Points[i];
+		// 		Gizmos.DrawWireCube(t.localPosition, t.localScale);
+		// 	}
+		// }
 	}
 
 	#region CoordinateConversions
