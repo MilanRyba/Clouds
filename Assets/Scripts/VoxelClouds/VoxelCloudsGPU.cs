@@ -59,7 +59,7 @@ public class VoxelCloudsGPU : MonoBehaviour
 	{
 		var desc = new RenderTextureDescriptor(NumVoxelsX, NumVoxelsY);
 		desc.volumeDepth = NumVoxelsZ;
-		desc.graphicsFormat = GraphicsFormat.R8G8B8A8_UInt;
+		desc.graphicsFormat = GraphicsFormat.R8_UInt;
 		desc.dimension = UnityEngine.Rendering.TextureDimension.Tex3D;
 		desc.enableRandomWrite = true;
 		m_TextureCurrent = new RenderTexture(desc);
@@ -105,12 +105,19 @@ public class VoxelCloudsGPU : MonoBehaviour
 		m_TimeSinceLastUpdate += Time.deltaTime;
 		if (m_TimeSinceLastUpdate >= m_TimeBetweenUpdates)
 		{
+			// Reset timer
 			m_TimeSinceLastUpdate = 0.0f;
+
+			// Run the simulation step
 			DispatchShader("SimulationCS");
+
+			// Swap the automatons
 			SwapBuffers();
+
+			// Recalculate new positions
+			DispatchShader("PositionsCS");
 		}
 
-		DispatchShader("PositionsCS");
 		RenderVoxels();
 	}
 

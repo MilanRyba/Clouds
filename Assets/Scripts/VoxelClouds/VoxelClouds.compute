@@ -2,8 +2,8 @@
 #pragma kernel ResetCS
 #pragma kernel PositionsCS
 
-Texture3D<uint4> _AutomatonFrom;
-RWTexture3D<uint4> _AutomatonTo;
+Texture3D<uint> _AutomatonFrom;
+RWTexture3D<uint> _AutomatonTo;
 
 RWStructuredBuffer<float3> _Positions;
 
@@ -18,67 +18,9 @@ float3 _VoxelGridOrigin;
 uint _Idx;
 uint _Visualization;
 
-#define BITS_PER_UINT 32
-
-/*
-// Get index of uint in bit field
-uint UintIndexOfBit(int inBit)
-{
-    return inBit / BITS_PER_UINT;
-}
-
-// Get bit offset in byte
-uint IndexOfBitInUint(int inBit)
-{
-    return inBit % BITS_PER_UINT;
-}
-
-// Get byte where bit at inBit'th location is set to 1. All other bits are 0.
-uint MakeBitmaskForUint(int inBit)
-{
-    return 1u << IndexOfBitInUint(inBit);
-}
-
-// Set bit at inBit'th location to 1
-void SetBit(int inBit, RWStructuredBuffer<uint> inBuffer)
-{
-    if (inBit < 0 || inBit >= _Volume)
-        return;
-    
-    inBuffer[UintIndexOfBit(inBit)] |= MakeBitmaskForUint(inBit);
-}
-
-// Set bit at inBit'th location to 0
-void ClearBit(int inBit, RWStructuredBuffer<uint> inBuffer)
-{
-    if (inBit < 0 || inBit >= _Volume)
-        return;
-    
-    inBuffer[UintIndexOfBit(inBit)] &= ~MakeBitmaskForUint(inBit);
-}
-
-// Set bit at inBit'th location to 0 or 1 based on inValue
-void AssignBit(int inBit, bool inValue, RWStructuredBuffer<uint> inBuffer)
-{
-    if (inValue)
-        SetBit(inBit, inBuffer);
-    else
-        ClearBit(inBit, inBuffer);
-}
-
-// Get bit at inBit'th location
-bool GetBit(int inBit, StructuredBuffer<uint> inBuffer)
-{
-    if (inBit < 0 || inBit >= _Volume)
-        return false;
-    
-    return (inBuffer[UintIndexOfBit(inBit)] & MakeBitmaskForUint(inBit)) != 0;
-}
-*/
-
-// +----------------------+    +-------------------+    +-------+
-// | World Space Position | -> | Voxel Coordinates | -> | Index |
-// +----------------------+    +-------------------+    +-------+
+// +----------------------+     +-------------------+     +-------+
+// | World Space Position | <=> | Voxel Coordinates | <=> | Index |
+// +----------------------+     +-------------------+     +-------+
 
 bool OutOfBoundsVoxelCoords(int inX, int inY, int inZ)
 {
@@ -119,10 +61,6 @@ int IdxFromWorldPosition(float3 inPosition)
     return IdxFromVoxelCoords(voxelCoords);
 }
 
-// +----------------------+    +-------------------+    +-------+
-// | World Space Position | <- | Voxel Coordinates | <- | Index |
-// +----------------------+    +-------------------+    +-------+
-
 // Get world space position of voxel center
 float3 WorldPositionFromVoxelCoords(int inX, int inY, int inZ)
 {
@@ -162,18 +100,46 @@ float3 WorldPositionFromIdx(int inIdx)
 	return WorldPositionFromVoxelCoords(voxelCoords);
 }
 
-//===================================================
+//==============================
+// Voxel Byte Layout - 0000 0HCA
+//   H = Humidity
+//   C = Clouds
+//   A = Activation
+//==============================
 
-uint TransitionHumidity(uint4 inVoxel)
+struct CloudVoxelData
 {
-    // Humidity AND (NOT Activation)
-    return (inVoxel.r && !inVoxel.b) ? 1 : 0;
+    bool Humidity;
+    bool Clouds;
+    bool Activation;
+};
+
+CloudVoxelData UnpackVoxel(uint inVoxel)
+{
+    CloudVoxelData voxelData;
+    voxelData.Humidity = (inVoxel & (1 << 2)) != 0;
+    voxelData.Clouds = (inVoxel & (1 << 1)) != 0;
+    voxelData.Activation = (inVoxel & (1 << 0)) != 0;
+    return voxelData;
 }
 
-uint TransitionClouds(uint4 inVoxel)
+uint PackVoxel(CloudVoxelData inData)
 {
-    // Clouds OR Activation
-    return (inVoxel.g || inVoxel.b) ? 1 : 0;
+    uint voxel = 0;
+    voxel |= inData.Humidity ? 1 << 2 : 0;
+    voxel |= inData.Clouds ? 1 << 1 : 0;
+    voxel |= inData.Activation ? 1 << 0 : 0;
+    return voxel;
+}
+
+bool TransitionHumidity(CloudVoxelData inData)
+{
+    return inData.Humidity && !inData.Activation;
+}
+
+bool TransitionClouds(CloudVoxelData inData)
+{
+    return inData.Clouds || inData.Activation;
 }
 
 static const int3 SampleCoords[11] = { 
@@ -188,26 +154,18 @@ bool ActivationFunction(int3 inVoxelCoords)
 {
     for (int i = 0; i < 11; i++)
     {
-        uint4 voxel = _AutomatonFrom[inVoxelCoords + SampleCoords[i]];
-        if (voxel.b)
+        uint voxel = _AutomatonFrom[inVoxelCoords + SampleCoords[i]];
+        CloudVoxelData voxelData = UnpackVoxel(voxel);
+        if (voxelData.Activation)
             return true;
     }
     return false;
 }
 
-bool TransitionActivation(uint4 inVoxel, int3 inVoxelCoords)
+bool TransitionActivation(CloudVoxelData inData, int3 inVoxelCoords)
 {
-    // (NOT Activation) AND Humidity AND ActivationFunction
-    return (!inVoxel.b && inVoxel.r && ActivationFunction(inVoxelCoords)) ? 1 : 0;
+    return !inData.Activation && inData.Humidity && ActivationFunction(inVoxelCoords);
 }
-
-//========================
-// Voxel Layout
-//   R = Humidity
-//   G = Clouds
-//   B = Activation
-//   A = Unused
-//========================
 
 [numthreads(4, 4, 4)]
 void SimulationCS(uint3 inVoxelCoords : SV_DispatchThreadID)
@@ -216,13 +174,14 @@ void SimulationCS(uint3 inVoxelCoords : SV_DispatchThreadID)
     if (OutOfBoundsVoxelCoords(vCoords))
         return;
     
-    uint4 voxelFrom = _AutomatonFrom[vCoords];
-    uint4 voxelTo = 0;
-    voxelTo.r = TransitionHumidity(voxelFrom);
-    voxelTo.g = TransitionClouds(voxelFrom);
-    voxelTo.b = TransitionActivation(voxelFrom, vCoords);
+    CloudVoxelData voxelDataFrom = UnpackVoxel(_AutomatonFrom[vCoords]);
         
-    _AutomatonTo[vCoords] = voxelTo;
+    CloudVoxelData voxelDataTo;
+    voxelDataTo.Humidity = TransitionHumidity(voxelDataFrom);
+    voxelDataTo.Clouds = TransitionClouds(voxelDataFrom);
+    voxelDataTo.Activation = TransitionActivation(voxelDataFrom, vCoords);
+        
+    _AutomatonTo[vCoords] = PackVoxel(voxelDataTo);
 }
 
 [numthreads(4, 4, 4)]
@@ -232,7 +191,11 @@ void ResetCS(uint3 inVoxelCoords : SV_DispatchThreadID)
     if (OutOfBoundsVoxelCoords(vCoords))
         return;
     
-    _AutomatonTo[vCoords] = uint4(1, 0, _Idx == IdxFromVoxelCoords(vCoords), 0);
+    CloudVoxelData voxelData;
+    voxelData.Humidity = true;
+    voxelData.Clouds = false;
+    voxelData.Activation = _Idx == IdxFromVoxelCoords(vCoords);
+    _AutomatonTo[vCoords] = PackVoxel(voxelData);
 }
 
 [numthreads(4, 4, 4)]
@@ -242,17 +205,19 @@ void PositionsCS(uint3 inVoxelCoords : SV_DispatchThreadID)
     if (OutOfBoundsVoxelCoords(vCoords))
         return;
     
-    uint4 voxel = _AutomatonFrom[vCoords];
-    int idx = IdxFromVoxelCoords(vCoords);
+    uint voxel = _AutomatonFrom[vCoords];
+    CloudVoxelData voxelData = UnpackVoxel(voxel);
     
     bool assertion = false;
     if (_Visualization == 0)
-        assertion = voxel.r == 1;
+        assertion = voxelData.Humidity;
     else if (_Visualization == 1)
-        assertion = voxel.g == 1;
+        assertion = voxelData.Clouds;
     else if (_Visualization == 2)
-        assertion = voxel.b == 1;
-        
+        assertion = voxelData.Activation;
+    
+    
+    int idx = IdxFromVoxelCoords(vCoords);
     if (assertion)
         _Positions[idx] = WorldPositionFromIdx(idx);
     else
