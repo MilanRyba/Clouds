@@ -8,7 +8,6 @@ RWTexture3D<uint> _AutomatonTo;
 RWStructuredBuffer<float3> _Positions;
 
 float _VoxelSize;
-
 int _NumVoxelsX;
 int _NumVoxelsY;
 int _NumVoxelsZ;
@@ -17,34 +16,56 @@ float3 _VoxelGridOrigin;
 
 uint _Idx;
 uint _Visualization;
+uint _Seed;
+float _ProbabilityExtiction;
+
+// Hashing functions
+
+#define FPRIME 1317666547U
+#define VPRIME uint3(3480082861U, 2420690917U, 2149110343U)
+#define SMALLESTFLOAT (1.0 / float(0xffffffffU))
+float hash13(float3 p)
+{
+    uint3 q = uint3(int3(p)) * VPRIME;
+    uint n = (q.x & q.y ^ q.z) * FPRIME;
+    return float(n) * SMALLESTFLOAT;
+}
+
+// 3 in 3 out hash
+#define UI0 1597334673U
+#define UI1 3812015801U
+#define UI3 uint3(UI0, UI1, 2798796415U)
+#define UIF (1.0 / float(0xffffffffU))
+float3 hash33(float3 p)
+{
+    uint3 q = uint3(int3(p)) * UI3;
+    q = (q.x ^ q.y ^ q.z) * UI3;
+    return float3(q) * UIF;
+}
+
+float GetRandom01(int3 inVoxelCoords)
+{
+    return hash13(inVoxelCoords + float3(_Seed - 252, _Seed, _Seed + 22));
+}
 
 // +----------------------+     +-------------------+     +-------+
 // | World Space Position | <=> | Voxel Coordinates | <=> | Index |
 // +----------------------+     +-------------------+     +-------+
 
-bool OutOfBoundsVoxelCoords(int inX, int inY, int inZ)
-{
-    return inX < 0 || inX >= _NumVoxelsX || inY < 0 || inY >= _NumVoxelsY || inZ < 0 || inZ >= _NumVoxelsZ;
-}
-
 bool OutOfBoundsVoxelCoords(int3 inVoxelCoords)
 {
-    return OutOfBoundsVoxelCoords(inVoxelCoords.x, inVoxelCoords.y, inVoxelCoords.z);
-}
-
-// Get voxel index from voxel coordinates. Returns -1 if coords are out of bounds.
-int IdxFromVoxelCoords(int inX, int inY, int inZ)
-{
-    if (OutOfBoundsVoxelCoords(inX, inY, inZ))
-        return -1;
-
-    return inX + inY * _NumVoxelsX + inZ * _NumVoxelsY * _NumVoxelsX;
+    return inVoxelCoords.x < 0 || inVoxelCoords.x >= _NumVoxelsX || 
+           inVoxelCoords.y < 0 || inVoxelCoords.y >= _NumVoxelsY || 
+           inVoxelCoords.z < 0 || inVoxelCoords.z >= _NumVoxelsZ;
 }
 
 // Get voxel index from voxel coordinates. Returns -1 if coords are out of bounds.
 int IdxFromVoxelCoords(int3 inVoxelCoords)
 {
-    return IdxFromVoxelCoords(inVoxelCoords.x, inVoxelCoords.y, inVoxelCoords.z);
+    if (OutOfBoundsVoxelCoords(inVoxelCoords))
+        return -1;
+    
+    return inVoxelCoords.x + inVoxelCoords.y * _NumVoxelsX + inVoxelCoords.z * _NumVoxelsY * _NumVoxelsX;
 }
 
 // Get voxel coordinates from world space position.
@@ -62,25 +83,19 @@ int IdxFromWorldPosition(float3 inPosition)
 }
 
 // Get world space position of voxel center
-float3 WorldPositionFromVoxelCoords(int inX, int inY, int inZ)
+float3 WorldPositionFromVoxelCoords(int3 inVoxelCoords)
 {
-	// Scale voxel coordinates
-    float3 position = float3(inX, inY, inZ) * _VoxelSize;
+    // Scale voxel coordinates
+    float3 position = inVoxelCoords * _VoxelSize;
 
 	// Apply offset so that the position is in voxel center
     float offset = 0.5f * _VoxelSize;
     position += offset;
 
     // Translate the position relative to the grid origin
-	position += _VoxelGridOrigin;
+    position += _VoxelGridOrigin;
 
-	return position;
-}
-
-// Get world space position of voxel center
-float3 WorldPositionFromVoxelCoords(int3 inVoxelCoords)
-{
-	return WorldPositionFromVoxelCoords(inVoxelCoords.x, inVoxelCoords.y, inVoxelCoords.z);
+    return position;
 }
 
 int3 VoxelCoordsFromIdx(int inIdx)
@@ -132,15 +147,7 @@ uint PackVoxel(CloudVoxelData inData)
     return voxel;
 }
 
-bool TransitionHumidity(CloudVoxelData inData)
-{
-    return inData.Humidity && !inData.Activation;
-}
-
-bool TransitionClouds(CloudVoxelData inData)
-{
-    return inData.Clouds || inData.Activation;
-}
+// Transition Rules
 
 static const int3 SampleCoords[11] = { 
     int3( 1,  0,  0), int3(0,  1, 0), int3(0, 0,  1), 
@@ -154,7 +161,11 @@ bool ActivationFunction(int3 inVoxelCoords)
 {
     for (int i = 0; i < 11; i++)
     {
-        uint voxel = _AutomatonFrom[inVoxelCoords + SampleCoords[i]];
+        int3 sampleCoords = inVoxelCoords + SampleCoords[i];
+        if (OutOfBoundsVoxelCoords(sampleCoords))
+            continue;
+
+        uint voxel = _AutomatonFrom[sampleCoords];
         CloudVoxelData voxelData = UnpackVoxel(voxel);
         if (voxelData.Activation)
             return true;
@@ -162,9 +173,20 @@ bool ActivationFunction(int3 inVoxelCoords)
     return false;
 }
 
-bool TransitionActivation(CloudVoxelData inData, int3 inVoxelCoords)
+void DoTransition(int3 inVoxelCoords, CloudVoxelData inData, out CloudVoxelData outData)
 {
-    return !inData.Activation && inData.Humidity && ActivationFunction(inVoxelCoords);
+    outData.Humidity = inData.Humidity && !inData.Activation;
+    outData.Clouds = inData.Clouds || inData.Activation;
+    outData.Activation = !inData.Activation && inData.Humidity && ActivationFunction(inVoxelCoords);
+}
+
+void DoExtinction(int3 inVoxelCoords, inout CloudVoxelData ioData)
+{
+    float rnd = GetRandom01(inVoxelCoords);
+    
+    ioData.Clouds = ioData.Clouds && rnd > _ProbabilityExtiction;
+    ioData.Humidity = ioData.Humidity || rnd < 0.4;
+    ioData.Activation = ioData.Activation || rnd < 0.01;
 }
 
 [numthreads(4, 4, 4)]
@@ -175,11 +197,10 @@ void SimulationCS(uint3 inVoxelCoords : SV_DispatchThreadID)
         return;
     
     CloudVoxelData voxelDataFrom = UnpackVoxel(_AutomatonFrom[vCoords]);
-        
     CloudVoxelData voxelDataTo;
-    voxelDataTo.Humidity = TransitionHumidity(voxelDataFrom);
-    voxelDataTo.Clouds = TransitionClouds(voxelDataFrom);
-    voxelDataTo.Activation = TransitionActivation(voxelDataFrom, vCoords);
+    
+    DoTransition(vCoords, voxelDataFrom, voxelDataTo);
+    DoExtinction(vCoords, voxelDataTo);
         
     _AutomatonTo[vCoords] = PackVoxel(voxelDataTo);
 }
@@ -192,9 +213,9 @@ void ResetCS(uint3 inVoxelCoords : SV_DispatchThreadID)
         return;
     
     CloudVoxelData voxelData;
-    voxelData.Humidity = true;
+    voxelData.Humidity = GetRandom01(vCoords) < 0.5;
     voxelData.Clouds = false;
-    voxelData.Activation = _Idx == IdxFromVoxelCoords(vCoords);
+    voxelData.Activation = GetRandom01(vCoords) < 0.25;
     _AutomatonTo[vCoords] = PackVoxel(voxelData);
 }
 

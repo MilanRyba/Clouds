@@ -4,14 +4,27 @@ using UnityEngine.Experimental.Rendering;
 
 public class VoxelCloudsGPU : MonoBehaviour
 {
+	[Header("Simulation")]
+
+	[SerializeField]
+	ComputeShader m_Shader;
+
 	[SerializeField]
 	Vector3Int m_WorldExtents = new Vector3Int(20, 10, 20);
 
 	[SerializeField, Min(0.2f)]
 	float m_VoxelSize = 1.0f;
 
-	[SerializeField]
-	ComputeShader m_Shader;
+	[SerializeField, Min(0)]
+	int m_Idx = 0;
+
+	[SerializeField, Range(0.0f, 1.0f)]
+	float m_ProbabilityExtiction = 0.5f;
+
+	[SerializeField, Range(0.0f, 2.0f)]
+	float m_TimeBetweenUpdates = 0.5f;
+
+	[Header("Rendering")]
 
 	[SerializeField]
 	Material m_Material;
@@ -19,16 +32,11 @@ public class VoxelCloudsGPU : MonoBehaviour
 	[SerializeField]
 	Mesh m_Mesh;
 
-	[SerializeField, Min(0)]
-	int m_Idx = 0;
-
 	enum Visualization { Humidity, Clouds, Activation }
 
 	[SerializeField]
 	Visualization m_Visualization = Visualization.Clouds;
 
-	[SerializeField, Range(0.0f, 2.0f)]
-	float m_TimeBetweenUpdates = 0.5f;
 
 	float m_TimeSinceLastUpdate = 0.0f;
 
@@ -37,7 +45,7 @@ public class VoxelCloudsGPU : MonoBehaviour
 	int NumVoxelsZ => (int)(m_WorldExtents.z / m_VoxelSize);
 	int Volume => NumVoxelsX * NumVoxelsY * NumVoxelsZ;
 
-	Vector3 VoxelGridOrigin => -(m_WorldExtents / 2);
+	Vector3 VoxelGridOrigin => -(m_WorldExtents / 2) + transform.position;
 
 	ComputeBuffer m_PositionsBuffer;
 
@@ -103,6 +111,7 @@ public class VoxelCloudsGPU : MonoBehaviour
 		}
 
 		m_TimeSinceLastUpdate += Time.deltaTime;
+		// if (Input.GetKeyDown(KeyCode.K))
 		if (m_TimeSinceLastUpdate >= m_TimeBetweenUpdates)
 		{
 			// Reset timer
@@ -113,9 +122,6 @@ public class VoxelCloudsGPU : MonoBehaviour
 
 			// Swap the automatons
 			SwapBuffers();
-
-			// Recalculate new positions
-			DispatchShader("PositionsCS");
 		}
 
 		RenderVoxels();
@@ -123,6 +129,9 @@ public class VoxelCloudsGPU : MonoBehaviour
 
 	private void RenderVoxels()
 	{
+		// Recalculate new positions
+		DispatchShader("PositionsCS");
+
 		m_Material.SetBuffer("_Positions", m_PositionsBuffer);
 		m_Material.SetFloat("_VoxelSize", m_VoxelSize);
 
@@ -146,6 +155,13 @@ public class VoxelCloudsGPU : MonoBehaviour
 		m_Shader.SetInt("_Idx", m_Idx);
 		m_Shader.SetInt("_Visualization", (int)m_Visualization);
 
+		int rand = Random.Range(300, 1000);
+		if (kernel != 2)
+			Debug.Log($"Seed = {rand}");
+		m_Shader.SetInt("_Seed", rand);
+
+		m_Shader.SetFloat("_ProbabilityExtiction", m_ProbabilityExtiction);
+
 		m_Shader.SetTexture(kernel, "_AutomatonFrom", m_TextureCurrent);
 		m_Shader.SetTexture(kernel, "_AutomatonTo", m_TextureNext);
 		m_Shader.SetBuffer(kernel, "_Positions", m_PositionsBuffer);
@@ -155,16 +171,18 @@ public class VoxelCloudsGPU : MonoBehaviour
 
 	private void OnDrawGizmos()
 	{
+		Vector3 origin = transform.position;
+
 		Gizmos.color = Color.yellow;
-		Gizmos.DrawWireCube(Vector3.zero, m_WorldExtents);
+		Gizmos.DrawWireCube(origin, m_WorldExtents);
 
 		Gizmos.color = Color.red;
-		Gizmos.DrawRay(Vector3.zero, Vector3.right * (m_WorldExtents.x / 2));
+		Gizmos.DrawRay(origin, Vector3.right * (m_WorldExtents.x / 2));
 
 		Gizmos.color = Color.green;
-		Gizmos.DrawRay(Vector3.zero, Vector3.up * (m_WorldExtents.y / 2));
+		Gizmos.DrawRay(origin, Vector3.up * (m_WorldExtents.y / 2));
 
 		Gizmos.color = Color.blue;
-		Gizmos.DrawRay(Vector3.zero, Vector3.forward * (m_WorldExtents.z / 2));
+		Gizmos.DrawRay(origin, Vector3.forward * (m_WorldExtents.z / 2));
 	}
 }

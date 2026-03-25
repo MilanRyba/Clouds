@@ -103,20 +103,6 @@ public class VoxelClouds : MonoBehaviour
 					int idx = IdxFromVoxelCoords(x, y, z);
 					m_ProbabilityExtinction[idx] = 0.1f;
 					m_ProbabilityGeneration[idx] = 0.0001f;
-
-
-					// // World space center of a voxel
-					// Vector3 voxelCenter = new Vector3(x + 0.5f, y + 0.5f, z + 0.5f) - m_WorldExtents / 2;
-					// 
-					// float result = Mathf.Pow((voxelCenter.x - elCenter.x) / elSize.x, 2) + 
-					// 			   Mathf.Pow((voxelCenter.y - elCenter.y) / elSize.y, 2) + 
-					// 			   Mathf.Pow((voxelCenter.z - elCenter.z) / elSize.z, 2);
-					// 
-					// if (result <= 1)
-					// {
-					// 	m_ProbabilityExtinction[idx] = 0.0001f;
-					// 	m_ProbabilityGeneration[idx] = 0.1f;
-					// }
 				}
 			}
 		}
@@ -325,13 +311,6 @@ public class VoxelClouds : MonoBehaviour
 	}
 
 	#endregion
-
-	float sdEllipsoid(Vector3 p, Vector3 r)
-	{
-		float k0 = new Vector3(p.x / r.x, p.y / r.y, p.z / r.z).magnitude;
-		float k1 = new Vector3(p.x / (r.x * r.x), p.y / (r.y * r.y), p.z / (r.z * r.z)).magnitude;
-		return k0 * (k0 - 1.0f) / k1;
-	}
 
 	private void OnDrawGizmos()
 	{

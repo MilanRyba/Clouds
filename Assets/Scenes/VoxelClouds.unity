@@ -151,14 +151,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ee85cdb298d17fd409e9997076a2218c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_WorldExtents: {x: 256, y: 32, z: 256}
-  m_VoxelSize: 1
   m_Shader: {fileID: 7200000, guid: 7f2e64b261559ae42954d120c52e902e, type: 3}
+  m_WorldExtents: {x: 256, y: 32, z: 256}
+  m_VoxelSize: 2
+  m_Idx: 10979
+  m_ProbabilityExtiction: 0.5
+  m_TimeBetweenUpdates: 0.5
   m_Material: {fileID: 2100000, guid: fe5c6484421d6bd4e9aaf0ee65189338, type: 2}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
-  m_Idx: 11800
   m_Visualization: 1
-  m_TimeBetweenUpdates: 0.5
 --- !u!4 &710418460
 Transform:
   m_ObjectHideFlags: 0
