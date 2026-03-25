@@ -16,10 +16,13 @@ public class VoxelCloudsGPU : MonoBehaviour
 	float m_VoxelSize = 1.0f;
 
 	[SerializeField, Min(0)]
-	int m_Idx = 0;
+	int m_CloudSpeed = 1;
 
 	[SerializeField, Range(0.0f, 1.0f)]
 	float m_ProbabilityExtiction = 0.5f;
+
+	[SerializeField]
+	Transform m_Sphere;
 
 	[SerializeField, Range(0.0f, 2.0f)]
 	float m_TimeBetweenUpdates = 0.5f;
@@ -39,6 +42,7 @@ public class VoxelCloudsGPU : MonoBehaviour
 
 
 	float m_TimeSinceLastUpdate = 0.0f;
+	int m_CloudOffset = 0;
 
 	int NumVoxelsX => (int)(m_WorldExtents.x / m_VoxelSize);
 	int NumVoxelsY => (int)(m_WorldExtents.y / m_VoxelSize);
@@ -94,6 +98,7 @@ public class VoxelCloudsGPU : MonoBehaviour
 	{
 		DispatchShader("ResetCS");
 		SwapBuffers();
+		m_CloudOffset = 0;
 	}
 
 	private void SwapBuffers()
@@ -111,11 +116,13 @@ public class VoxelCloudsGPU : MonoBehaviour
 		}
 
 		m_TimeSinceLastUpdate += Time.deltaTime;
-		// if (Input.GetKeyDown(KeyCode.K))
 		if (m_TimeSinceLastUpdate >= m_TimeBetweenUpdates)
+		// if (Input.GetKeyDown(KeyCode.K))
 		{
 			// Reset timer
 			m_TimeSinceLastUpdate = 0.0f;
+
+			m_CloudOffset += m_CloudSpeed;
 
 			// Run the simulation step
 			DispatchShader("SimulationCS");
@@ -146,21 +153,19 @@ public class VoxelCloudsGPU : MonoBehaviour
 		int kernel = m_Shader.FindKernel(inKernelName);
 
 		m_Shader.SetFloat("_VoxelSize", m_VoxelSize);
-		m_Shader.SetInt("_NumVoxelsX", NumVoxelsX);
-		m_Shader.SetInt("_NumVoxelsY", NumVoxelsY);
-		m_Shader.SetInt("_NumVoxelsZ", NumVoxelsZ);
 		m_Shader.SetInt("_Volume", Volume);
+		m_Shader.SetVector("_VoxelGridResolution", new Vector3(NumVoxelsX, NumVoxelsY, NumVoxelsZ));
 		m_Shader.SetVector("_VoxelGridOrigin", VoxelGridOrigin);
 
-		m_Shader.SetInt("_Idx", m_Idx);
+		m_Shader.SetInt("_CloudSpeed", m_CloudSpeed);
+		m_Shader.SetInt("_CloudOffset", m_CloudOffset);
 		m_Shader.SetInt("_Visualization", (int)m_Visualization);
-
-		int rand = Random.Range(300, 1000);
-		if (kernel != 2)
-			Debug.Log($"Seed = {rand}");
-		m_Shader.SetInt("_Seed", rand);
+		m_Shader.SetInt("_Seed", Random.Range(300, 1000));
 
 		m_Shader.SetFloat("_ProbabilityExtiction", m_ProbabilityExtiction);
+
+		m_Shader.SetVector("_SpherePosition", m_Sphere.position);
+		m_Shader.SetFloat("_SphereRadius", m_Sphere.localScale.x);
 
 		m_Shader.SetTexture(kernel, "_AutomatonFrom", m_TextureCurrent);
 		m_Shader.SetTexture(kernel, "_AutomatonTo", m_TextureNext);
@@ -184,5 +189,8 @@ public class VoxelCloudsGPU : MonoBehaviour
 
 		Gizmos.color = Color.blue;
 		Gizmos.DrawRay(origin, Vector3.forward * (m_WorldExtents.z / 2));
+
+		Gizmos.color = Color.green;
+		Gizmos.DrawWireSphere(m_Sphere.position, m_Sphere.localScale.x);
 	}
 }
