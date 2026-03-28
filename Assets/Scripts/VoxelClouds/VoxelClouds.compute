@@ -7,6 +7,15 @@ RWTexture3D<uint> _AutomatonTo;
 
 RWStructuredBuffer<float3> _Positions;
 
+struct Ellipsoid
+{
+    float4 Position;
+    float4 Scale;
+};
+
+StructuredBuffer<Ellipsoid> _Ellipsoids;
+int _NumEllipsoids;
+
 float _VoxelSize;            // Each voxel is a cube with side lengths of _VoxelSize meters
 int _Volume;                 // Total number of voxels
 int3 _VoxelGridResolution;   // Number of voxels in each dimension
@@ -17,10 +26,6 @@ uint _CloudOffset;
 
 uint _Visualization;
 uint _Seed;
-float _ProbabilityExtiction;
-
-float3 _SpherePosition;
-float _SphereRadius;
 
 // Hashing functions
 
@@ -116,40 +121,51 @@ float3 WorldPositionFromIdx(int inIdx)
 	return WorldPositionFromVoxelCoords(voxelCoords);
 }
 
-float SDSphere(int3 inVoxelCoords)
+bool SDScene(int3 inVoxelCoords, out float outDistance)
 {
-    float3 worldPosition = WorldPositionFromVoxelCoords(inVoxelCoords);
-    return distance(_SpherePosition, worldPosition) - _SphereRadius;
+    float3 posWS = WorldPositionFromVoxelCoords(inVoxelCoords);
+    for (int i = 0; i < _NumEllipsoids; i++)
+    {
+        Ellipsoid e = _Ellipsoids[i];
+        
+        if (posWS.x > (e.Position.x - e.Scale.x) && posWS.x < (e.Position.x + e.Scale.x) &&
+			posWS.y > (e.Position.y - e.Scale.y) && posWS.y < (e.Position.y + e.Scale.y) &&
+			posWS.z > (e.Position.z - e.Scale.z) && posWS.z < (e.Position.z + e.Scale.z))
+        {
+            // 1 =  on the edge, 0 = centre
+			// (x/a)2 + (y/b)2 + (z/c)2 = 1 general equation for ellipsoid
+            float result = pow((posWS.x - e.Position.x) / e.Scale.x, 2) +
+                           pow((posWS.y - e.Position.y) / e.Scale.y, 2) +
+                           pow((posWS.z - e.Position.z) / e.Scale.z, 2);
+            if (result <= 1)
+            {
+                // Inside the ellipsoid
+                outDistance = result;
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 float GetExtinctionProbability(int3 inVoxelCoords)
 {
-    float d = SDSphere(inVoxelCoords);
-    
-    // High clouds extiction outside the sphere
-    if (d > 0.0)
-        return 0.9;
-        
-    // 't' is 0 for sphere center and 1 at the sphere edge
-    float t = (d + _SphereRadius) / _SphereRadius;
+    float d;
+    if (!SDScene(inVoxelCoords, d))
+        return 0.9; // High clouds extiction outside the sphere
     
     // Increase extinction probability (a little bit) towards the edges
-    return lerp(0.001, 0.1, t);
+    return lerp(0.001, 0.1, d);
 }
 
 float GetGenerationProbability(int3 inVoxelCoords)
 {
-    float d = SDSphere(inVoxelCoords);
-    
-    // Low geration outside the sphere
-    if (d > 0.0)
-        return 0.001;
-        
-    // 't' is 0 for sphere center and 1 at the sphere edge
-    float t = (d + _SphereRadius) / _SphereRadius;
+    float d;
+    if (!SDScene(inVoxelCoords, d))
+        return 0.001; // Low geration outside the sphere
     
     // Increase extinction probability (a little bit) towards the edges
-    return lerp(0.15, 0.01, t);
+    return lerp(0.15, 0.01, d);
 }
 
 //==============================

@@ -17,9 +17,6 @@ public class VoxelClouds : MonoBehaviour
 	[SerializeField]
 	Transform m_Sphere1, m_Sphere2;
 
-	[SerializeField, Min(0)]
-	int m_Idx = 0;
-
 	int NumVoxelsX => (int)(m_WorldExtents.x / m_VoxelSize);
 	int NumVoxelsY => (int)(m_WorldExtents.y / m_VoxelSize);
 	int NumVoxelsZ => (int)(m_WorldExtents.z / m_VoxelSize);

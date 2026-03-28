@@ -22,7 +22,7 @@ public class VoxelCloudsGPU : MonoBehaviour
 	float m_ProbabilityExtiction = 0.5f;
 
 	[SerializeField]
-	Transform m_Sphere;
+	Transform[] m_Ellipsoids;
 
 	[SerializeField, Range(0.0f, 2.0f)]
 	float m_TimeBetweenUpdates = 0.5f;
@@ -34,6 +34,9 @@ public class VoxelCloudsGPU : MonoBehaviour
 
 	[SerializeField]
 	Mesh m_Mesh;
+
+	[SerializeField]
+	Mesh m_EllipsoidMesh;
 
 	enum Visualization { Humidity, Clouds, Activation }
 
@@ -51,10 +54,19 @@ public class VoxelCloudsGPU : MonoBehaviour
 
 	Vector3 VoxelGridOrigin => -(m_WorldExtents / 2) + transform.position;
 
-	ComputeBuffer m_PositionsBuffer;
+	private ComputeBuffer m_PositionsBuffer;
+	private ComputeBuffer m_EllipsoidsBuffer;
 
 	private RenderTexture m_TextureCurrent;
 	private RenderTexture m_TextureNext;
+
+	public struct Ellipsoid
+	{
+		public Vector4 Position;
+		public Vector4 Scale;
+	}
+
+	private Ellipsoid[] m_EllipsoidsData;
 
 	private void OnEnable()
 	{
@@ -80,6 +92,9 @@ public class VoxelCloudsGPU : MonoBehaviour
 		m_TextureNext.Create();
 
 		m_PositionsBuffer = new ComputeBuffer(Volume, GraphicsHelper.GetStride<Vector3>());
+
+		m_EllipsoidsBuffer = new ComputeBuffer(m_Ellipsoids.Length, GraphicsHelper.GetStride<Ellipsoid>());
+		m_EllipsoidsData = new Ellipsoid[m_Ellipsoids.Length];
 	}
 
 	private void ReleaseResources()
@@ -92,6 +107,11 @@ public class VoxelCloudsGPU : MonoBehaviour
 
 		m_PositionsBuffer.Release();
 		m_PositionsBuffer = null;
+
+		m_EllipsoidsBuffer.Release();
+		m_EllipsoidsBuffer = null;
+
+		m_EllipsoidsData = null;
 	}
 
 	private void ResetVoxels()
@@ -162,14 +182,18 @@ public class VoxelCloudsGPU : MonoBehaviour
 		m_Shader.SetInt("_Visualization", (int)m_Visualization);
 		m_Shader.SetInt("_Seed", Random.Range(300, 1000));
 
-		m_Shader.SetFloat("_ProbabilityExtiction", m_ProbabilityExtiction);
-
-		m_Shader.SetVector("_SpherePosition", m_Sphere.position);
-		m_Shader.SetFloat("_SphereRadius", m_Sphere.localScale.x);
-
 		m_Shader.SetTexture(kernel, "_AutomatonFrom", m_TextureCurrent);
 		m_Shader.SetTexture(kernel, "_AutomatonTo", m_TextureNext);
 		m_Shader.SetBuffer(kernel, "_Positions", m_PositionsBuffer);
+
+		for (int i = 0; i <  m_Ellipsoids.Length; i++)
+		{
+			m_EllipsoidsData[i].Position = m_Ellipsoids[i].position;
+			m_EllipsoidsData[i].Scale = m_Ellipsoids[i].localScale / 2.0f;
+		}
+		m_EllipsoidsBuffer.SetData(m_EllipsoidsData);
+		m_Shader.SetBuffer(kernel, "_Ellipsoids", m_EllipsoidsBuffer);
+		m_Shader.SetInt("_NumEllipsoids", m_Ellipsoids.Length);
 
 		GraphicsHelper.Dispatch(m_Shader, NumVoxelsX, NumVoxelsY, NumVoxelsZ, kernel);
 	}
@@ -191,6 +215,7 @@ public class VoxelCloudsGPU : MonoBehaviour
 		Gizmos.DrawRay(origin, Vector3.forward * (m_WorldExtents.z / 2));
 
 		Gizmos.color = Color.green;
-		Gizmos.DrawWireSphere(m_Sphere.position, m_Sphere.localScale.x);
+		foreach (var e in m_Ellipsoids)
+			Gizmos.DrawWireMesh(m_EllipsoidMesh, e.position, Quaternion.identity, e.localScale);
 	}
 }
